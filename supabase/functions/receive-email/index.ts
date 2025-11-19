@@ -79,20 +79,26 @@ const handler = async (req: Request): Promise<Response> => {
     // Resend sends the email data in the 'data' property
     const webhookData = verifiedPayload.data || verifiedPayload;
     
-    console.log("Received email webhook:", {
-      type: verifiedPayload.type,
-      from: webhookData.from,
-      to: webhookData.to,
-      subject: webhookData.subject,
+    console.log("Received email webhook - full payload:", JSON.stringify(webhookData, null, 2));
+    
+    // Extract email body - Resend inbound emails have the body in the payload
+    // The fields might be 'html' and 'text' or nested in other properties
+    const emailHtml = webhookData.html || webhookData.body_html || webhookData.Html || "";
+    const emailText = webhookData.text || webhookData.body_text || webhookData.Text || "";
+    
+    console.log("Extracted email body:", {
+      hasHtml: !!emailHtml,
+      hasText: !!emailText,
+      htmlLength: emailHtml?.length || 0,
+      textLength: emailText?.length || 0,
     });
 
-    // For inbound emails, the content is directly in the webhook payload
     const payload: InboundEmailPayload = {
       from: webhookData.from,
       to: Array.isArray(webhookData.to) ? webhookData.to : [webhookData.to],
       subject: webhookData.subject,
-      html: webhookData.html || "",
-      text: webhookData.text || "",
+      html: emailHtml,
+      text: emailText,
       reply_to: webhookData.reply_to,
       cc: webhookData.cc,
       bcc: webhookData.bcc,

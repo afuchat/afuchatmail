@@ -150,23 +150,35 @@ export const EmailList = ({ folderId, onEmailSelect, refreshTrigger, searchQuery
 
   const groupEmailsIntoThreads = (emailList: Email[]) => {
     const threadMap = new Map<string, Email[]>();
-    const standaloneEmails: Email[] = [];
+    const emailIdSet = new Set(emailList.map(e => e.id));
 
-    // Group emails by thread_id
+    // First pass: collect all thread IDs that are being used
+    const activeThreadIds = new Set<string>();
     emailList.forEach(email => {
       if (email.thread_id) {
+        activeThreadIds.add(email.thread_id);
+      }
+    });
+
+    // Group emails by thread_id or by their own ID if they're a thread parent
+    emailList.forEach(email => {
+      if (email.thread_id) {
+        // Email is part of a thread
         const existing = threadMap.get(email.thread_id) || [];
         threadMap.set(email.thread_id, [...existing, email]);
+      } else if (activeThreadIds.has(email.id)) {
+        // Email's ID is being used as a thread_id by other emails, so it's a thread parent
+        const existing = threadMap.get(email.id) || [];
+        threadMap.set(email.id, [...existing, email]);
       } else {
-        // Email without thread_id is standalone
-        standaloneEmails.push(email);
+        // Truly standalone email - use its own ID as thread identifier
+        threadMap.set(email.id, [email]);
       }
     });
 
     // Create thread objects
     const threadList: EmailThread[] = [];
 
-    // Add threaded emails
     threadMap.forEach((threadEmails, threadId) => {
       const sortedEmails = threadEmails.sort((a, b) => 
         new Date(b.created_at || b.received_at || b.sent_at).getTime() - 
@@ -180,16 +192,6 @@ export const EmailList = ({ folderId, onEmailSelect, refreshTrigger, searchQuery
         emails: sortedEmails,
         latest_email: sortedEmails[0],
         unread_count: unreadCount,
-      });
-    });
-
-    // Add standalone emails as single-email threads
-    standaloneEmails.forEach(email => {
-      threadList.push({
-        thread_id: email.id,
-        emails: [email],
-        latest_email: email,
-        unread_count: email.is_read ? 0 : 1,
       });
     });
 
