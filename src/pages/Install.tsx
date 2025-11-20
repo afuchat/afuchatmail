@@ -98,7 +98,7 @@ export default function Install() {
 
               <Button 
                 variant="outline" 
-                onClick={() => navigate("/")}
+                onClick={() => navigate("/dashboard")}
                 className="w-full"
               >
                 Continue in Browser
