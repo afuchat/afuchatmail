@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { ArrowLeft, Plus, Copy, Trash2, Key, Book, Shield } from "lucide-react";
+import { ArrowLeft, Plus, Copy, Trash2, Key, Book, Shield, Pencil } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 
@@ -42,6 +42,9 @@ const Developers = () => {
   const [newAppRedirectUri, setNewAppRedirectUri] = useState("");
   const [selectedScopes, setSelectedScopes] = useState<string[]>(["read:mailbox", "read:messages"]);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingApp, setEditingApp] = useState<OAuthApp | null>(null);
+  const [editScopes, setEditScopes] = useState<string[]>([]);
   const [showSecrets, setShowSecrets] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
@@ -110,6 +113,38 @@ const Developers = () => {
         ? prev.filter(s => s !== scopeId)
         : [...prev, scopeId]
     );
+  };
+
+  const toggleEditScope = (scopeId: string) => {
+    setEditScopes(prev => 
+      prev.includes(scopeId) 
+        ? prev.filter(s => s !== scopeId)
+        : [...prev, scopeId]
+    );
+  };
+
+  const openEditDialog = (app: OAuthApp) => {
+    setEditingApp(app);
+    setEditScopes([...app.scopes]);
+    setEditDialogOpen(true);
+  };
+
+  const updateAppScopes = async () => {
+    if (!editingApp) return;
+
+    const { error } = await supabase
+      .from("oauth_applications")
+      .update({ scopes: editScopes })
+      .eq("id", editingApp.id);
+
+    if (error) {
+      toast.error("Failed to update scopes");
+    } else {
+      toast.success("Scopes updated successfully");
+      setEditDialogOpen(false);
+      setEditingApp(null);
+      fetchApps();
+    }
   };
 
   const deleteApp = async (id: string) => {
@@ -235,6 +270,51 @@ const Developers = () => {
                   </DialogFooter>
                 </DialogContent>
               </Dialog>
+
+              {/* Edit Scopes Dialog */}
+              <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Edit Scopes</DialogTitle>
+                    <DialogDescription>
+                      Update the permissions for {editingApp?.name}
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                      <Label>Scopes</Label>
+                      <div className="grid gap-2 max-h-64 overflow-y-auto border rounded-md p-3">
+                        {AVAILABLE_SCOPES.map((scope) => (
+                          <div key={scope.id} className="flex items-start space-x-2">
+                            <Checkbox
+                              id={`edit-${scope.id}`}
+                              checked={editScopes.includes(scope.id)}
+                              onCheckedChange={() => toggleEditScope(scope.id)}
+                            />
+                            <div className="grid gap-0.5 leading-none">
+                              <label
+                                htmlFor={`edit-${scope.id}`}
+                                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                              >
+                                {scope.label}
+                              </label>
+                              <p className="text-xs text-muted-foreground">
+                                {scope.description}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
+                      Cancel
+                    </Button>
+                    <Button onClick={updateAppScopes}>Save Changes</Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
             </div>
 
             {loading ? (
@@ -265,14 +345,23 @@ const Developers = () => {
                             Created {new Date(app.created_at).toLocaleDateString()}
                           </CardDescription>
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="text-destructive hover:text-destructive"
-                          onClick={() => deleteApp(app.id)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        <div className="flex gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => openEditDialog(app)}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-destructive hover:text-destructive"
+                            onClick={() => deleteApp(app.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </div>
                     </CardHeader>
                     <CardContent className="space-y-4">
