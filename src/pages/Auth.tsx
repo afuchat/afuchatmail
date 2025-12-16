@@ -26,6 +26,7 @@ const Auth = () => {
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [checkingAuth, setCheckingAuth] = useState(true);
+  const [preparingOAuth, setPreparingOAuth] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
   const [searchParams] = useSearchParams();
@@ -42,6 +43,61 @@ const Auth = () => {
       }
     : null;
 
+  const fetchOrCreateEmailAddress = async (userId: string, authEmail: string | undefined) => {
+    // Try to get existing primary email address
+    const { data: emailAddress } = await supabase
+      .from("email_addresses")
+      .select("full_email, local_part")
+      .eq("user_id", userId)
+      .eq("is_primary", true)
+      .maybeSingle();
+    
+    if (emailAddress) {
+      return emailAddress.full_email || `${emailAddress.local_part}@afuchat.com`;
+    }
+    
+    // Create one if it doesn't exist
+    if (!authEmail) {
+      return null;
+    }
+    
+    const baseUsername = authEmail.split("@")[0].toLowerCase().replace(/[^a-z0-9]/g, "");
+    let username = baseUsername;
+    let suffix = 1;
+    
+    // Check if username exists, add suffix if needed
+    while (true) {
+      const { data: existing } = await supabase
+        .from("email_addresses")
+        .select("id")
+        .eq("local_part", username)
+        .maybeSingle();
+      
+      if (!existing) break;
+      username = `${baseUsername}${suffix}`;
+      suffix++;
+    }
+    
+    // Create the email address
+    const { data: newEmail, error: createError } = await supabase
+      .from("email_addresses")
+      .insert({
+        user_id: userId,
+        local_part: username,
+        is_primary: true,
+        is_alias: false,
+      })
+      .select("local_part")
+      .single();
+    
+    if (createError || !newEmail) {
+      console.error("Failed to create email address:", createError);
+      return authEmail; // Fallback to auth email
+    }
+    
+    return `${newEmail.local_part}@afuchat.com`;
+  };
+
   useEffect(() => {
     const checkSession = async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -49,22 +105,12 @@ const Auth = () => {
       if (session) {
         setIsAuthenticated(true);
         
-        // Get user's primary email address
-        const { data: emailAddresses } = await supabase
-          .from("email_addresses")
-          .select("full_email, local_part")
-          .eq("user_id", session.user.id)
-          .eq("is_primary", true)
-          .single();
-        
-        if (emailAddresses) {
-          setUserEmail(emailAddresses.full_email || `${emailAddresses.local_part}@afuchat.com`);
+        if (isOAuthFlow) {
+          setPreparingOAuth(true);
+          const email = await fetchOrCreateEmailAddress(session.user.id, session.user.email);
+          setUserEmail(email);
+          setPreparingOAuth(false);
         } else {
-          setUserEmail(session.user.email || "");
-        }
-        
-        // If not OAuth flow, redirect to dashboard
-        if (!isOAuthFlow) {
           navigate("/dashboard");
         }
       }
@@ -75,26 +121,18 @@ const Auth = () => {
     checkSession();
 
     // Set up auth state listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (session) {
         setIsAuthenticated(true);
         
-        // Get user's primary email address
-        const { data: emailAddresses } = await supabase
-          .from("email_addresses")
-          .select("full_email, local_part")
-          .eq("user_id", session.user.id)
-          .eq("is_primary", true)
-          .single();
-        
-        if (emailAddresses) {
-          setUserEmail(emailAddresses.full_email || `${emailAddresses.local_part}@afuchat.com`);
+        if (isOAuthFlow) {
+          setPreparingOAuth(true);
+          setTimeout(async () => {
+            const email = await fetchOrCreateEmailAddress(session.user.id, session.user.email);
+            setUserEmail(email);
+            setPreparingOAuth(false);
+          }, 0);
         } else {
-          setUserEmail(session.user.email || "");
-        }
-        
-        // If not OAuth flow, redirect to dashboard
-        if (!isOAuthFlow) {
           navigate("/dashboard");
         }
       } else {
@@ -157,11 +195,16 @@ const Auth = () => {
     }
   };
 
-  // Show loading state while checking auth
-  if (checkingAuth) {
+  // Show loading state while checking auth or preparing OAuth
+  if (checkingAuth || preparingOAuth) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-hero">
-        <div className="animate-pulse">Loading...</div>
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+          <p className="text-muted-foreground">
+            {preparingOAuth ? "Preparing authorization..." : "Loading..."}
+          </p>
+        </div>
       </div>
     );
   }
