@@ -115,11 +115,11 @@ const OAuthConsentScreen = ({ oauthParams, userEmail }: OAuthConsentScreenProps)
         
         // Check if username exists, add suffix if needed
         while (true) {
-          const { data: existing } = await supabase
+        const { data: existing } = await supabase
             .from("email_addresses")
             .select("id")
             .eq("local_part", username)
-            .single();
+            .maybeSingle();
           
           if (!existing) break;
           username = `${baseUsername}${suffix}`;
@@ -150,10 +150,10 @@ const OAuthConsentScreen = ({ oauthParams, userEmail }: OAuthConsentScreenProps)
         .from("oauth_applications")
         .select("id")
         .eq("client_id", oauthParams.clientId)
-        .single();
+        .maybeSingle();
       
       if (appError || !app) {
-        throw new Error("Invalid client_id");
+        throw new Error("Invalid client_id - application not found");
       }
       
       // Create authorization code
