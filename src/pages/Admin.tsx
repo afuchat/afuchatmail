@@ -208,30 +208,40 @@ const Admin = () => {
                   className="flex flex-col md:flex-row md:items-center justify-between p-4 rounded-lg border bg-card gap-4"
                 >
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Badge variant={user.is_admin ? "default" : "secondary"}>
-                        {user.is_admin ? "Admin" : "User"}
-                      </Badge>
-                      <Badge variant="outline">{user.email_count} emails</Badge>
-                    </div>
-                    <div className="flex flex-wrap gap-1">
-                      {user.email_addresses.slice(0, 5).map((email, idx) => (
-                        <span
-                          key={idx}
-                          className="text-xs px-2 py-1 rounded bg-muted text-muted-foreground"
-                        >
-                          {email}
-                        </span>
-                      ))}
-                      {user.email_addresses.length > 5 && (
-                        <span className="text-xs px-2 py-1 rounded bg-muted text-muted-foreground">
-                          +{user.email_addresses.length - 5} more
-                        </span>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="font-medium text-foreground">
+                        {user.email_addresses[0] || "No email"}
+                      </span>
+                      {user.is_admin && (
+                        <Badge variant="default" className="bg-amber-500">
+                          <Crown className="h-3 w-3 mr-1" />
+                          Admin
+                        </Badge>
                       )}
                     </div>
-                    <p className="text-xs text-muted-foreground mt-2">
-                      ID: {user.user_id.slice(0, 8)}...
-                    </p>
+                    <div className="flex items-center gap-2 mb-2">
+                      <Badge variant="outline">{user.email_count} email{user.email_count !== 1 ? 's' : ''}</Badge>
+                      <span className="text-xs text-muted-foreground">
+                        ID: {user.user_id.slice(0, 8)}...
+                      </span>
+                    </div>
+                    {user.email_addresses.length > 1 && (
+                      <div className="flex flex-wrap gap-1">
+                        {user.email_addresses.slice(1, 5).map((email, idx) => (
+                          <span
+                            key={idx}
+                            className="text-xs px-2 py-1 rounded bg-muted text-muted-foreground"
+                          >
+                            {email}
+                          </span>
+                        ))}
+                        {user.email_addresses.length > 5 && (
+                          <span className="text-xs px-2 py-1 rounded bg-muted text-muted-foreground">
+                            +{user.email_addresses.length - 5} more
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex items-center gap-3">
