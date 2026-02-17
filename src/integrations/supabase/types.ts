@@ -141,6 +141,7 @@ export type Database = {
           original_folder_id: string | null
           received_at: string | null
           reply_to: string | null
+          scheduled_at: string | null
           sent_at: string | null
           snoozed_until: string | null
           subject: string
@@ -167,6 +168,7 @@ export type Database = {
           original_folder_id?: string | null
           received_at?: string | null
           reply_to?: string | null
+          scheduled_at?: string | null
           sent_at?: string | null
           snoozed_until?: string | null
           subject: string
@@ -193,6 +195,7 @@ export type Database = {
           original_folder_id?: string | null
           received_at?: string | null
           reply_to?: string | null
+          scheduled_at?: string | null
           sent_at?: string | null
           snoozed_until?: string | null
           subject?: string

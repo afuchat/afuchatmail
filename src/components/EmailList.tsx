@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Star, Trash2, Mail, MailOpen, CheckCheck, AlertCircle, Undo2 } from "lucide-react";
+import { Star, Trash2, Mail, MailOpen, CheckCheck, AlertCircle, Undo2, Archive } from "lucide-react";
+import { SwipeableEmailItem } from "@/components/SwipeableEmailItem";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { formatDistanceToNow, format } from "date-fns";
@@ -579,8 +580,12 @@ export const EmailList = ({ folderId, emailAddressId, onEmailSelect, refreshTrig
           const hasMultipleEmails = thread.emails.length > 1;
           
           return (
-            <div
+            <SwipeableEmailItem
               key={thread.thread_id}
+              onSwipeLeft={() => deleteEmail(email.id)}
+              onSwipeRight={() => deleteEmail(email.id)}
+            >
+            <div
               onClick={() => onEmailSelect(email)}
               className={cn(
                 "flex items-start gap-3 px-4 py-3.5 cursor-pointer transition-all duration-150 touch-active",
@@ -689,6 +694,7 @@ export const EmailList = ({ folderId, emailAddressId, onEmailSelect, refreshTrig
                 )}
               </div>
             </div>
+            </SwipeableEmailItem>
           );
         })}
       </div>
