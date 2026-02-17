@@ -7,10 +7,10 @@ const About = () => {
   const navigate = useNavigate();
 
   return (
-    <PageLayout>
-      <section className="pt-12 pb-8">
-        <h1 className="text-3xl font-bold tracking-tight mb-2">About</h1>
-        <p className="text-muted-foreground">Building the future of email.</p>
+    <PageLayout title="About">
+      <section className="pb-8">
+        <h1 className="text-3xl font-black tracking-tight mb-2">About AfuChat</h1>
+        <p className="text-muted-foreground font-medium">Building the future of email.</p>
       </section>
 
       <section className="pb-8 space-y-4 text-muted-foreground leading-relaxed">
@@ -25,31 +25,34 @@ const About = () => {
         </p>
       </section>
 
-      <section className="py-8 border-t">
-        <h2 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-6">What we stand for</h2>
+      <section className="py-8 border-t border-border">
+        <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-6">What we stand for</h2>
         <div className="space-y-5">
           <div>
-            <h3 className="font-semibold mb-0.5">Focus</h3>
-            <p className="text-sm text-muted-foreground">Building the best email experience, without distractions.</p>
+            <h3 className="font-bold mb-0.5">Focus</h3>
+            <p className="text-sm text-muted-foreground font-medium">Building the best email experience, without distractions.</p>
           </div>
           <div>
-            <h3 className="font-semibold mb-0.5">Privacy</h3>
-            <p className="text-sm text-muted-foreground">Your data belongs to you. No tracking, no ads, no compromises.</p>
+            <h3 className="font-bold mb-0.5">Privacy</h3>
+            <p className="text-sm text-muted-foreground font-medium">Your data belongs to you. No tracking, no ads, no compromises.</p>
           </div>
           <div>
-            <h3 className="font-semibold mb-0.5">Innovation</h3>
-            <p className="text-sm text-muted-foreground">Constantly evolving to meet modern communication needs.</p>
+            <h3 className="font-bold mb-0.5">Innovation</h3>
+            <p className="text-sm text-muted-foreground font-medium">Constantly evolving to meet modern communication needs.</p>
           </div>
         </div>
       </section>
 
-      <section className="py-12 text-center border-t">
-        <h2 className="text-xl font-bold mb-3">Join us</h2>
-        <Button size="lg" onClick={() => navigate("/auth")}>
+      <section className="py-12 text-center border-t border-border">
+        <h2 className="text-xl font-black mb-3">Join us</h2>
+        <Button size="lg" className="rounded-xl shadow-md font-bold" onClick={() => navigate("/auth")}>
           Get Started Free
           <ArrowRight className="ml-2 h-4 w-4" />
         </Button>
       </section>
+
+      {/* Extra scroll space */}
+      <div className="pb-12" />
     </PageLayout>
   );
 };

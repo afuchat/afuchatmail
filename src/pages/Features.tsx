@@ -16,41 +16,43 @@ const Features = () => {
     { icon: Search, title: "Powerful Search", description: "Find any email instantly with advanced filters." },
     { icon: Archive, title: "Smart Organization", description: "Automatic threading and custom folders." },
     { icon: Star, title: "Important Markers", description: "Smart sorting based on sender history." },
-    { icon: Clock, title: "Snooze", description: "Hide emails and have them reappear later." },
+    { icon: Clock, title: "Snooze & Schedule", description: "Snooze emails or schedule sends for the perfect time." },
     { icon: Lock, title: "Privacy First", description: "No tracking, no ads, no data mining." },
     { icon: Bell, title: "Push Notifications", description: "Customizable real-time alerts." },
   ];
 
   return (
-    <PageLayout>
-      <section className="pt-12 pb-8">
-        <h1 className="text-3xl font-bold tracking-tight mb-2">Features</h1>
-        <p className="text-muted-foreground">Everything you need for professional email.</p>
+    <PageLayout title="Features">
+      <section className="pb-8">
+        <h1 className="text-3xl font-black tracking-tight mb-2">Features</h1>
+        <p className="text-muted-foreground font-medium">Everything you need for professional email.</p>
       </section>
 
       <section className="pb-12">
-        <div className="space-y-6">
+        <div className="space-y-5">
           {features.map((feature, i) => (
             <div key={i} className="flex gap-4 items-start">
-              <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
-                <feature.icon className="h-5 w-5 text-foreground" />
+              <div className="h-10 w-10 rounded-xl bg-accent flex items-center justify-center flex-shrink-0">
+                <feature.icon className="h-5 w-5 text-accent-foreground" />
               </div>
               <div>
-                <h3 className="font-semibold mb-0.5">{feature.title}</h3>
-                <p className="text-sm text-muted-foreground">{feature.description}</p>
+                <h3 className="font-bold mb-0.5">{feature.title}</h3>
+                <p className="text-sm text-muted-foreground font-medium">{feature.description}</p>
               </div>
             </div>
           ))}
         </div>
       </section>
 
-      <section className="py-12 text-center border-t">
-        <h2 className="text-xl font-bold mb-3">Ready to try?</h2>
-        <Button size="lg" onClick={() => navigate("/auth")}>
+      <section className="py-12 text-center border-t border-border">
+        <h2 className="text-xl font-black mb-3">Ready to try?</h2>
+        <Button size="lg" className="rounded-xl shadow-md font-bold" onClick={() => navigate("/auth")}>
           Get Started Free
           <ArrowRight className="ml-2 h-4 w-4" />
         </Button>
       </section>
+
+      <div className="pb-12" />
     </PageLayout>
   );
 };

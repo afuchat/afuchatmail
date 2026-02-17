@@ -16,7 +16,7 @@ const Index = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background overflow-y-auto scroll-smooth-ios">
       {/* Nav */}
       <nav className="sticky top-0 z-50 bg-card/80 backdrop-blur-xl border-b border-border">
         <div className="max-w-3xl mx-auto px-5 py-3 flex items-center justify-between">
@@ -28,10 +28,10 @@ const Index = () => {
           </div>
           <div className="flex items-center gap-2">
             <ThemeToggle />
-            <Button variant="ghost" size="sm" className="rounded-xl font-medium" onClick={() => navigate("/auth")}>
+            <Button variant="ghost" size="sm" className="rounded-xl font-semibold" onClick={() => navigate("/auth")}>
               Sign In
             </Button>
-            <Button size="sm" className="rounded-xl font-medium shadow-sm hidden sm:flex" onClick={() => navigate("/auth")}>
+            <Button size="sm" className="rounded-xl font-semibold shadow-sm hidden sm:flex" onClick={() => navigate("/auth")}>
               Get Started
             </Button>
           </div>
@@ -40,7 +40,7 @@ const Index = () => {
 
       {/* Hero */}
       <section className="max-w-3xl mx-auto px-5 pt-16 pb-12">
-        <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-accent text-accent-foreground text-xs font-semibold mb-6 shadow-xs border border-border">
+        <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-accent text-accent-foreground text-xs font-bold mb-6 shadow-xs border border-border">
           <Sparkles className="h-3.5 w-3.5" />
           Free forever · No ads · Privacy first
         </div>
@@ -52,11 +52,11 @@ const Index = () => {
           Custom @afuchat.com addresses with aliases, threading, and real-time sync.
         </p>
         <div className="flex gap-3">
-          <Button size="lg" className="rounded-xl shadow-md hover:shadow-lg transition-shadow h-12 px-6 font-semibold" onClick={() => navigate("/auth")}>
+          <Button size="lg" className="rounded-xl shadow-md hover:shadow-lg transition-shadow h-12 px-6 font-bold" onClick={() => navigate("/auth")}>
             Get Started Free
             <ArrowRight className="ml-2 h-4 w-4" />
           </Button>
-          <Button size="lg" variant="outline" className="rounded-xl h-12 px-6 font-semibold border-border" onClick={() => navigate("/features")}>
+          <Button size="lg" variant="outline" className="rounded-xl h-12 px-6 font-bold border-border" onClick={() => navigate("/features")}>
             Learn More
           </Button>
         </div>
@@ -84,10 +84,10 @@ const Index = () => {
         <div className="bg-card border border-border rounded-3xl p-8 md:p-12 text-center shadow-md">
           <h2 className="text-3xl md:text-4xl font-black mb-3">Ready to start?</h2>
           <p className="text-muted-foreground mb-8 max-w-md mx-auto text-[15px] font-medium">No credit card required. Setup in 60 seconds.</p>
-          <Button size="lg" className="rounded-xl shadow-md hover:shadow-lg h-12 px-8 font-semibold" onClick={() => navigate("/auth")}>
+          <Button size="lg" className="rounded-xl shadow-md hover:shadow-lg h-12 px-8 font-bold" onClick={() => navigate("/auth")}>
             Create Free Account
           </Button>
-          <div className="flex items-center justify-center gap-5 mt-8 text-xs text-muted-foreground font-medium">
+          <div className="flex items-center justify-center gap-5 mt-8 text-xs text-muted-foreground font-semibold">
             <span className="flex items-center gap-1.5"><Check className="h-3.5 w-3.5 text-green-500" /> Free forever</span>
             <span className="flex items-center gap-1.5"><Check className="h-3.5 w-3.5 text-green-500" /> No ads</span>
             <span className="flex items-center gap-1.5"><Check className="h-3.5 w-3.5 text-green-500" /> Privacy first</span>
@@ -99,14 +99,14 @@ const Index = () => {
       <footer className="border-t border-border bg-card">
         <div className="max-w-3xl mx-auto px-5 py-8">
           <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted-foreground mb-6">
-            <button onClick={() => navigate("/features")} className="hover:text-foreground transition-colors font-medium">Features</button>
-            <button onClick={() => navigate("/security")} className="hover:text-foreground transition-colors font-medium">Security</button>
-            <button onClick={() => navigate("/about")} className="hover:text-foreground transition-colors font-medium">About</button>
-            <button onClick={() => navigate("/contact")} className="hover:text-foreground transition-colors font-medium">Contact</button>
-            <button onClick={() => navigate("/privacy")} className="hover:text-foreground transition-colors font-medium">Privacy</button>
-            <button onClick={() => navigate("/terms")} className="hover:text-foreground transition-colors font-medium">Terms</button>
+            <button onClick={() => navigate("/features")} className="hover:text-foreground transition-colors font-semibold">Features</button>
+            <button onClick={() => navigate("/security")} className="hover:text-foreground transition-colors font-semibold">Security</button>
+            <button onClick={() => navigate("/about")} className="hover:text-foreground transition-colors font-semibold">About</button>
+            <button onClick={() => navigate("/contact")} className="hover:text-foreground transition-colors font-semibold">Contact</button>
+            <button onClick={() => navigate("/privacy")} className="hover:text-foreground transition-colors font-semibold">Privacy</button>
+            <button onClick={() => navigate("/terms")} className="hover:text-foreground transition-colors font-semibold">Terms</button>
           </div>
-          <p className="text-xs text-muted-foreground">&copy; {new Date().getFullYear()} AfuChat Mail. All rights reserved.</p>
+          <p className="text-xs text-muted-foreground font-medium">&copy; {new Date().getFullYear()} AfuChat Mail. All rights reserved.</p>
         </div>
       </footer>
     </div>
