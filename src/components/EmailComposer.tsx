@@ -72,7 +72,7 @@ export const EmailComposer = ({ fromAddress: propFromAddress, onClose, replyTo, 
   const [scheduledAt, setScheduledAt] = useState<string>("");
   const [showSchedule, setShowSchedule] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const autocompleteTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const autocompleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { toast } = useToast();
 
   const {
