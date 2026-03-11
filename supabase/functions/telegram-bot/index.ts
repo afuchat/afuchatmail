@@ -331,8 +331,60 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
-    const update = await req.json();
-    const message = update.message;
+    const body = await req.json();
+
+    // Handle claim_link action from web UI
+    if (body.action === "claim_link") {
+      const { code, user_id } = body;
+      if (!code || !user_id) {
+        return new Response(JSON.stringify({ error: "Missing code or user_id" }), {
+          status: 400, headers: { "Content-Type": "application/json", ...corsHeaders },
+        });
+      }
+
+      // Find pending link with this code
+      const { data: pending, error: findErr } = await supabaseAdmin
+        .from("telegram_links")
+        .select("*")
+        .eq("link_code", code)
+        .eq("user_id", "00000000-0000-0000-0000-000000000000")
+        .maybeSingle();
+
+      if (findErr || !pending) {
+        return new Response(JSON.stringify({ error: "Invalid or expired link code" }), {
+          status: 404, headers: { "Content-Type": "application/json", ...corsHeaders },
+        });
+      }
+
+      // Check expiry
+      if (new Date(pending.link_code_expires_at) < new Date()) {
+        return new Response(JSON.stringify({ error: "Link code expired. Send /start again in Telegram." }), {
+          status: 410, headers: { "Content-Type": "application/json", ...corsHeaders },
+        });
+      }
+
+      // Claim it
+      const { error: updateErr } = await supabaseAdmin
+        .from("telegram_links")
+        .update({ user_id: user_id, link_code: null, link_code_expires_at: null })
+        .eq("id", pending.id);
+
+      if (updateErr) {
+        return new Response(JSON.stringify({ error: updateErr.message }), {
+          status: 500, headers: { "Content-Type": "application/json", ...corsHeaders },
+        });
+      }
+
+      // Notify user on Telegram
+      await sendTelegramMessage(pending.chat_id, "✅ <b>Account linked!</b>\n\nYou'll now receive email notifications here.\nUse /inbox to check your emails.");
+
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { "Content-Type": "application/json", ...corsHeaders },
+      });
+    }
+
+    // Handle Telegram webhook update
+    const message = body.message;
     
     if (!message || !message.text) {
       return new Response(JSON.stringify({ ok: true }), {
