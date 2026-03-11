@@ -72,7 +72,7 @@ async function handleInbox(chatId: number) {
     .maybeSingle();
 
   if (!link) {
-    await sendTelegramMessage(chatId, "❌ Account not linked. Use /start to get a link code.");
+    await sendTelegramMessage(chatId, "❌ Account not linked. Use /start to get e link code.");
     return;
   }
 
