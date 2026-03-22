@@ -608,6 +608,12 @@ export const EmailList = ({ folderId, emailAddressId, onEmailSelect, refreshTrig
 
   return (
     <div className="flex flex-col h-full">
+      {offline && (
+        <div className="flex items-center gap-2 px-4 py-2 bg-amber-500/10 border-b border-amber-500/20 text-amber-700 dark:text-amber-400">
+          <WifiOff className="h-3.5 w-3.5" />
+          <span className="text-xs font-semibold">You're offline — showing cached emails</span>
+        </div>
+      )}
       <div className="flex items-center justify-between px-4 py-2.5 border-b border-border bg-card flex-shrink-0">
         <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
           {threads.length} conversation{threads.length !== 1 ? 's' : ''}
