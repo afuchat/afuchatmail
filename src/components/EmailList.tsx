@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Star, Trash2, Mail, MailOpen, CheckCheck, AlertCircle, Undo2, Archive } from "lucide-react";
+import { Star, Trash2, Mail, MailOpen, CheckCheck, AlertCircle, Undo2, Archive, WifiOff } from "lucide-react";
+import { cacheEmails, getCachedEmails, removeCachedEmail, updateCachedEmail, isOnline, onOnlineStatusChange } from "@/lib/offlineCache";
 import { SwipeableEmailItem } from "@/components/SwipeableEmailItem";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -58,12 +59,24 @@ export const EmailList = ({ folderId, emailAddressId, onEmailSelect, refreshTrig
   const [threads, setThreads] = useState<EmailThread[]>([]);
   const [loading, setLoading] = useState(true);
   const [isTrashFolder, setIsTrashFolder] = useState(false);
+  const [offline, setOffline] = useState(!isOnline());
   const { toast } = useToast();
 
   useEffect(() => {
     fetchEmails();
     checkIfTrashFolder();
   }, [folderId, emailAddressId, refreshTrigger, searchQuery]);
+
+  // Track online/offline status
+  useEffect(() => {
+    const cleanup = onOnlineStatusChange((online) => {
+      setOffline(!online);
+      if (online) {
+        fetchEmails(); // Re-fetch when back online
+      }
+    });
+    return cleanup;
+  }, []);
 
   const checkIfTrashFolder = async () => {
     if (!folderId) {
@@ -140,11 +153,27 @@ export const EmailList = ({ folderId, emailAddressId, onEmailSelect, refreshTrig
     setLoading(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user) {
+        // Offline fallback: try cache without user ID filter
+        if (!isOnline()) {
+          const cached = await getCachedEmails({ folderId, emailAddressId, searchQuery });
+          setEmails(cached);
+        }
+        setLoading(false);
+        return;
+      }
 
       // Don't fetch if no email address is selected
       if (!emailAddressId) {
         setEmails([]);
+        setLoading(false);
+        return;
+      }
+
+      // If offline, serve from cache
+      if (!isOnline()) {
+        const cached = await getCachedEmails({ userId: user.id, folderId, emailAddressId, searchQuery });
+        setEmails(cached);
         setLoading(false);
         return;
       }
@@ -169,6 +198,11 @@ export const EmailList = ({ folderId, emailAddressId, onEmailSelect, refreshTrig
       if (error) throw error;
       
       let filteredEmails = data || [];
+
+      // Cache ALL fetched emails for offline use (before search filter)
+      if (data && data.length > 0) {
+        cacheEmails(data);
+      }
       
       // Apply search filter if searchQuery exists
       if (searchQuery && searchQuery.trim()) {
@@ -184,6 +218,16 @@ export const EmailList = ({ folderId, emailAddressId, onEmailSelect, refreshTrig
       setEmails(filteredEmails);
     } catch (error: any) {
       console.error("Error fetching emails:", error);
+      // Fallback to cache on network error
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        const cached = await getCachedEmails({ userId: user?.id, folderId, emailAddressId, searchQuery });
+        if (cached.length > 0) {
+          setEmails(cached);
+          toast({ title: "Offline mode", description: "Showing cached emails" });
+          return;
+        }
+      } catch {}
       toast({
         title: "Error",
         description: "Failed to load emails",
@@ -253,16 +297,19 @@ export const EmailList = ({ folderId, emailAddressId, onEmailSelect, refreshTrig
 
   const toggleStar = async (emailId: string, currentStarred: boolean) => {
     try {
-      const { error } = await supabase
-        .from("emails")
-        .update({ is_starred: !currentStarred })
-        .eq("id", emailId);
-
-      if (error) throw error;
-      
+      // Optimistic local update
       setEmails(emails.map(email => 
         email.id === emailId ? { ...email, is_starred: !currentStarred } : email
       ));
+      updateCachedEmail(emailId, { is_starred: !currentStarred });
+
+      if (isOnline()) {
+        const { error } = await supabase
+          .from("emails")
+          .update({ is_starred: !currentStarred })
+          .eq("id", emailId);
+        if (error) throw error;
+      }
     } catch (error: any) {
       toast({
         title: "Error",
@@ -561,6 +608,12 @@ export const EmailList = ({ folderId, emailAddressId, onEmailSelect, refreshTrig
 
   return (
     <div className="flex flex-col h-full">
+      {offline && (
+        <div className="flex items-center gap-2 px-4 py-2 bg-amber-500/10 border-b border-amber-500/20 text-amber-700 dark:text-amber-400">
+          <WifiOff className="h-3.5 w-3.5" />
+          <span className="text-xs font-semibold">You're offline — showing cached emails</span>
+        </div>
+      )}
       <div className="flex items-center justify-between px-4 py-2.5 border-b border-border bg-card flex-shrink-0">
         <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
           {threads.length} conversation{threads.length !== 1 ? 's' : ''}
