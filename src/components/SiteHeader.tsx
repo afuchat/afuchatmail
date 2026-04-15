@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "react-router-dom";
-import { Building2, ChevronDown, Code2, FileText, LifeBuoy, Lock, Mail, Menu, Shield, Sparkles } from "lucide-react";
+import { Activity, Building2, ChevronDown, Code2, FileClock, FileText, LifeBuoy, Lock, Mail, Menu, Shield, Sparkles, Tags, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import {
@@ -17,6 +17,8 @@ const navGroups = [
     label: "Product",
     items: [
       { label: "Features", description: "Professional mail tools", path: "/features", icon: Sparkles },
+      { label: "Solutions", description: "Use cases and workflows", path: "/solutions", icon: Users },
+      { label: "Pricing", description: "Plans and future upgrades", path: "/pricing", icon: Tags },
       { label: "Security", description: "Privacy and protection", path: "/security", icon: Shield },
       { label: "Developers", description: "OAuth apps and APIs", path: "/developers", icon: Code2 },
     ],
@@ -31,6 +33,9 @@ const navGroups = [
   {
     label: "Resources",
     items: [
+      { label: "Help Center", description: "Guides and support", path: "/help", icon: LifeBuoy },
+      { label: "Status", description: "System availability", path: "/status", icon: Activity },
+      { label: "Changelog", description: "Product updates", path: "/changelog", icon: FileClock },
       { label: "Privacy", description: "How data is handled", path: "/privacy", icon: Lock },
       { label: "Terms", description: "Service policies", path: "/terms", icon: FileText },
     ],

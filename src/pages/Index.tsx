@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { Mail, ArrowRight, Shield, Zap, Smartphone, Users, Globe, Check, Sparkles, Star, Clock, Lock, Bell, Search, Archive, MessageSquare } from "lucide-react";
+import { Mail, ArrowRight, Shield, Zap, Smartphone, Users, Globe, Check, Sparkles, Star, Clock, Lock, Bell, Search, Archive, MessageSquare, Briefcase, Code2, Activity } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { SiteHeader } from "@/components/SiteHeader";
 
@@ -43,6 +43,12 @@ const Index = () => {
     { q: "How do you make money?", a: "We plan to offer premium features for power users in the future, but the core email experience will always be free." },
     { q: "Is my data safe?", a: "Absolutely. We use AES-256 encryption, never read your emails, and never sell your data. See our Security page for details." },
     { q: "Can I migrate from Gmail or Outlook?", a: "You can start receiving emails at your @afuchat.com address immediately. Import tools are coming soon." },
+  ];
+
+  const platformHighlights = [
+    { icon: Briefcase, title: "Professional workspace", description: "A flat, focused interface for client work, operations, newsletters, and personal business communication." },
+    { icon: Code2, title: "Developer ready", description: "OAuth app management and scoped access give builders a clear foundation for future integrations." },
+    { icon: Activity, title: "Trust pages included", description: "Pricing, status, changelog, help, privacy, terms, and security pages make the platform feel complete." },
   ];
 
   return (
@@ -144,6 +150,25 @@ const Index = () => {
                 <h3 className="font-bold text-[15px] mb-1">{feature.title}</h3>
                 <p className="text-muted-foreground text-[13px] leading-relaxed font-medium">{feature.description}</p>
               </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="max-w-6xl mx-auto px-4 sm:px-6 py-16">
+        <div className="mb-10">
+          <p className="text-xs font-bold text-primary uppercase tracking-wider mb-2">Platform</p>
+          <h2 className="text-3xl md:text-4xl font-black mb-3">More than a simple inbox</h2>
+          <p className="text-muted-foreground max-w-2xl font-medium">AfuChat Mail now includes the public trust, support, and product pages expected from a professional email platform.</p>
+        </div>
+        <div className="grid gap-4 md:grid-cols-3">
+          {platformHighlights.map((item, i) => (
+            <div key={item.title} className="rounded-3xl border border-border bg-card p-6 shadow-xs">
+              <div className="mb-5 flex h-11 w-11 items-center justify-center rounded-xl bg-accent text-accent-foreground">
+                <item.icon className="h-5 w-5" />
+              </div>
+              <h3 className="text-lg font-black" data-testid={`text-platform-highlight-${i}`}>{item.title}</h3>
+              <p className="mt-2 text-sm font-medium leading-7 text-muted-foreground">{item.description}</p>
             </div>
           ))}
         </div>
@@ -268,6 +293,8 @@ const Index = () => {
               <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-3">Product</p>
               <div className="space-y-2">
                 <button onClick={() => navigate("/features")} className="block text-sm text-muted-foreground hover:text-foreground transition-colors font-medium">Features</button>
+                <button onClick={() => navigate("/solutions")} className="block text-sm text-muted-foreground hover:text-foreground transition-colors font-medium">Solutions</button>
+                <button onClick={() => navigate("/pricing")} className="block text-sm text-muted-foreground hover:text-foreground transition-colors font-medium">Pricing</button>
                 <button onClick={() => navigate("/security")} className="block text-sm text-muted-foreground hover:text-foreground transition-colors font-medium">Security</button>
                 <button onClick={() => navigate("/developers")} className="block text-sm text-muted-foreground hover:text-foreground transition-colors font-medium">Developers</button>
               </div>
@@ -284,6 +311,8 @@ const Index = () => {
               <div className="space-y-2">
                 <button onClick={() => navigate("/privacy")} className="block text-sm text-muted-foreground hover:text-foreground transition-colors font-medium">Privacy Policy</button>
                 <button onClick={() => navigate("/terms")} className="block text-sm text-muted-foreground hover:text-foreground transition-colors font-medium">Terms of Service</button>
+                <button onClick={() => navigate("/status")} className="block text-sm text-muted-foreground hover:text-foreground transition-colors font-medium">Status</button>
+                <button onClick={() => navigate("/changelog")} className="block text-sm text-muted-foreground hover:text-foreground transition-colors font-medium">Changelog</button>
               </div>
             </div>
             <div>
@@ -291,6 +320,7 @@ const Index = () => {
               <div className="space-y-2">
                 <a href="mailto:support@afuchat.com" className="block text-sm text-muted-foreground hover:text-foreground transition-colors font-medium">support@afuchat.com</a>
                 <a href="mailto:contact@afuchat.com" className="block text-sm text-muted-foreground hover:text-foreground transition-colors font-medium">contact@afuchat.com</a>
+                <button onClick={() => navigate("/help")} className="block text-sm text-muted-foreground hover:text-foreground transition-colors font-medium">Help Center</button>
               </div>
             </div>
           </div>

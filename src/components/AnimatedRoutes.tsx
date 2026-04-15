@@ -11,6 +11,11 @@ import Privacy from "@/pages/Privacy";
 import Terms from "@/pages/Terms";
 import Security from "@/pages/Security";
 import Developers from "@/pages/Developers";
+import Pricing from "@/pages/Pricing";
+import Solutions from "@/pages/Solutions";
+import HelpCenter from "@/pages/HelpCenter";
+import Status from "@/pages/Status";
+import Changelog from "@/pages/Changelog";
 import Admin from "@/pages/Admin";
 import TelegramMiniApp from "@/pages/TelegramMiniApp";
 import NotFound from "@/pages/NotFound";
@@ -72,6 +77,11 @@ export default function AnimatedRoutes() {
         <Route path="/terms" element={<AnimatedPage><Terms /></AnimatedPage>} />
         <Route path="/security" element={<AnimatedPage><Security /></AnimatedPage>} />
         <Route path="/developers" element={<AnimatedPage><Developers /></AnimatedPage>} />
+        <Route path="/pricing" element={<AnimatedPage><Pricing /></AnimatedPage>} />
+        <Route path="/solutions" element={<AnimatedPage><Solutions /></AnimatedPage>} />
+        <Route path="/help" element={<AnimatedPage><HelpCenter /></AnimatedPage>} />
+        <Route path="/status" element={<AnimatedPage><Status /></AnimatedPage>} />
+        <Route path="/changelog" element={<AnimatedPage><Changelog /></AnimatedPage>} />
         <Route path="/admin" element={<AnimatedPage><Admin /></AnimatedPage>} />
         <Route path="/telegram" element={<TelegramMiniApp />} />
         <Route path="*" element={<AnimatedPage><NotFound /></AnimatedPage>} />
