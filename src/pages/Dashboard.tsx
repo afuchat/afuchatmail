@@ -1,10 +1,10 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { Search, X, PenSquare, Menu } from "lucide-react";
+import { Search, X, PenSquare, Menu, GripVertical } from "lucide-react";
 import { User } from "@supabase/supabase-js";
 import { EmailSidebar } from "@/components/EmailSidebar";
 import { EmailList } from "@/components/EmailList";
@@ -13,8 +13,8 @@ import { EmailComposer } from "@/components/EmailComposer";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { PWAInstallPrompt } from "@/components/PWAInstallPrompt";
 import { BottomTabBar, TabId } from "@/components/BottomTabBar";
-import Settings from "@/pages/Settings";
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 
 interface EmailAddress {
   id: string;
@@ -38,6 +38,10 @@ interface Email {
   thread_id: string | null;
 }
 
+const MIN_LIST_WIDTH = 260;
+const MAX_LIST_WIDTH = 600;
+const DEFAULT_LIST_WIDTH = 340;
+
 const Dashboard = () => {
   const [user, setUser] = useState<User | null>(null);
   const [emailAddresses, setEmailAddresses] = useState<EmailAddress[]>([]);
@@ -55,6 +59,13 @@ const Dashboard = () => {
   const [selectedEmailAddressId, setSelectedEmailAddressId] = useState<string | null>(() => {
     return localStorage.getItem("selectedEmailAddressId");
   });
+
+  // Resizable list panel
+  const [listWidth, setListWidth] = useState(DEFAULT_LIST_WIDTH);
+  const isResizingRef = useRef(false);
+  const startXRef = useRef(0);
+  const startWidthRef = useRef(DEFAULT_LIST_WIDTH);
+
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -173,6 +184,32 @@ const Dashboard = () => {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [showComposer, selectedEmail]);
 
+  // Resize handler
+  const handleResizeMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    isResizingRef.current = true;
+    startXRef.current = e.clientX;
+    startWidthRef.current = listWidth;
+
+    const onMouseMove = (ev: MouseEvent) => {
+      if (!isResizingRef.current) return;
+      const delta = ev.clientX - startXRef.current;
+      const newWidth = Math.max(MIN_LIST_WIDTH, Math.min(MAX_LIST_WIDTH, startWidthRef.current + delta));
+      setListWidth(newWidth);
+    };
+    const onMouseUp = () => {
+      isResizingRef.current = false;
+      document.removeEventListener("mousemove", onMouseMove);
+      document.removeEventListener("mouseup", onMouseUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    document.addEventListener("mousemove", onMouseMove);
+    document.addEventListener("mouseup", onMouseUp);
+  }, [listWidth]);
+
   const handleEmailSelect = useCallback((email: Email) => {
     setSelectedEmail(email);
     setActiveTab("mail");
@@ -194,8 +231,6 @@ const Dashboard = () => {
     setRefreshTrigger(p => p + 1);
   }, []);
 
-  const currentEmailAddress = emailAddresses.find(e => e.id === selectedEmailAddressId);
-
   if (initializing) {
     return (
       <div className="h-[100dvh] bg-background flex flex-col">
@@ -203,11 +238,11 @@ const Dashboard = () => {
           <Skeleton className="h-7 w-7 rounded" />
           <Skeleton className="h-4 w-28" />
           <div className="flex-1" />
-          <Skeleton className="h-8 w-60 rounded hidden md:block" />
-          <Skeleton className="h-8 w-24 rounded hidden md:block" />
+          <Skeleton className="h-8 w-60 rounded hidden lg:block" />
+          <Skeleton className="h-8 w-24 rounded hidden lg:block" />
         </div>
         <div className="flex flex-1 overflow-hidden">
-          <div className="hidden md:flex w-[var(--sidebar-width)] border-r bg-card flex-col gap-3 p-4">
+          <div className="hidden lg:flex w-[var(--sidebar-width)] border-r bg-card flex-col gap-3 p-4">
             <Skeleton className="h-9 w-full rounded" />
             {[1,2,3,4,5].map(i => <Skeleton key={i} className="h-9 w-full rounded" />)}
           </div>
@@ -260,9 +295,10 @@ const Dashboard = () => {
   return (
     <div className="h-[100dvh] flex flex-col bg-background overflow-hidden">
 
-      {/* ── MOBILE LAYOUT ── */}
-      <div className="md:hidden flex-1 flex flex-col overflow-hidden pb-14">
-        {/* Mobile: Mail Tab */}
+      {/* ── MOBILE / TABLET LAYOUT (< lg = < 1024px) ── */}
+      <div className="lg:hidden flex-1 flex flex-col overflow-hidden pb-14">
+
+        {/* Mail Tab */}
         {activeTab === "mail" && (
           <div className="flex flex-col h-full">
             <header className="flex items-center gap-2 px-3 py-2.5 bg-card border-b sticky top-0 z-40">
@@ -272,7 +308,7 @@ const Dashboard = () => {
                     <Menu className="h-5 w-5" />
                   </Button>
                 </SheetTrigger>
-                <SheetContent side="left" className="p-0 w-[var(--sidebar-width)]" aria-describedby={undefined}>
+                <SheetContent side="left" className="p-0 w-[var(--sidebar-width)] max-w-[85vw]" aria-describedby={undefined}>
                   <SheetTitle className="sr-only">Navigation</SheetTitle>
                   <EmailSidebar {...sidebarProps} />
                 </SheetContent>
@@ -292,7 +328,7 @@ const Dashboard = () => {
                 className="h-9 w-9 rounded flex-shrink-0"
                 onClick={() => setShowComposer(true)}
               >
-                <PenSquare className="h-4.5 w-4.5" />
+                <PenSquare className="h-[18px] w-[18px]" />
               </Button>
             </header>
 
@@ -308,7 +344,7 @@ const Dashboard = () => {
           </div>
         )}
 
-        {/* Mobile: Search Tab */}
+        {/* Search Tab */}
         {activeTab === "search" && (
           <div className="flex flex-col h-full">
             <header className="px-3 py-2.5 bg-card border-b sticky top-0 z-40">
@@ -350,29 +386,24 @@ const Dashboard = () => {
           </div>
         )}
 
-        {/* Mobile: Settings Tab */}
-        {activeTab === "settings" && (
-          <div className="flex-1 overflow-y-auto scroll-smooth-ios pb-4">
-            <Settings embedded />
-          </div>
-        )}
-
         {/* Bottom Tab Bar */}
-        <div className="flex-shrink-0">
-          <BottomTabBar activeTab={activeTab} onTabChange={handleTabChange} unreadCount={unreadCount} />
-        </div>
+        <BottomTabBar activeTab={activeTab} onTabChange={handleTabChange} unreadCount={unreadCount} />
       </div>
 
-      {/* ── DESKTOP LAYOUT ── */}
-      <div className="hidden md:flex flex-1 overflow-hidden">
-        {/* Sidebar */}
-        <div className="flex-shrink-0 overflow-hidden">
+      {/* ── DESKTOP LAYOUT (>= lg = >= 1024px) ── */}
+      <div className="hidden lg:flex flex-1 overflow-hidden">
+
+        {/* Sidebar — fixed width */}
+        <div className="flex-shrink-0 overflow-hidden border-r">
           <EmailSidebar {...sidebarProps} />
         </div>
 
-        {/* Email List */}
-        <div className={`flex flex-col border-r overflow-hidden transition-all duration-200 ${selectedEmail ? "w-80 lg:w-96" : "flex-1"}`}>
-          {/* Desktop search bar */}
+        {/* Email List — resizable width when viewer is open */}
+        <div
+          className="flex flex-col border-r overflow-hidden flex-shrink-0"
+          style={{ width: selectedEmail ? listWidth : undefined, flex: selectedEmail ? undefined : "1 1 0%" }}
+        >
+          {/* Desktop search + compose bar */}
           <div className="px-3 py-2.5 border-b bg-card flex items-center gap-2 flex-shrink-0">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -381,7 +412,6 @@ const Dashboard = () => {
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
                 className="pl-9 h-9 rounded bg-muted shadow-none border-0 text-sm"
-                data-testid="input-desktop-search"
               />
               {searchQuery && (
                 <button className="absolute right-3 top-1/2 -translate-y-1/2" onClick={() => setSearchQuery("")}>
@@ -392,7 +422,6 @@ const Dashboard = () => {
             <Button
               className="h-9 rounded font-medium text-sm shadow-none flex-shrink-0"
               onClick={() => setShowComposer(true)}
-              data-testid="button-desktop-compose"
             >
               <PenSquare className="h-4 w-4 mr-1.5" />
               Compose
@@ -403,14 +432,25 @@ const Dashboard = () => {
           </div>
         </div>
 
+        {/* Resize handle — only visible when email viewer is open */}
+        {selectedEmail && (
+          <div
+            onMouseDown={handleResizeMouseDown}
+            className="w-1 flex-shrink-0 relative group cursor-col-resize bg-border hover:bg-primary/30 transition-colors duration-150 flex items-center justify-center"
+            title="Drag to resize"
+          >
+            <GripVertical className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity absolute" />
+          </div>
+        )}
+
         {/* Email Viewer Panel */}
         {selectedEmail && viewerProps && (
-          <div className="flex-1 overflow-y-auto thin-scrollbar">
+          <div className="flex-1 overflow-y-auto thin-scrollbar min-w-0">
             <EmailViewer {...viewerProps} />
           </div>
         )}
 
-        {/* Empty state when no email selected on wide layout */}
+        {/* Empty placeholder — no email selected */}
         {!selectedEmail && (
           <div className="hidden" />
         )}

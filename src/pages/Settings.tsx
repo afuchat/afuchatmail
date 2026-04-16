@@ -224,10 +224,12 @@ const Settings = ({ embedded = false }: { embedded?: boolean }) => {
         </div>
 
         <Tabs defaultValue="preferences" className="space-y-5">
-          <TabsList className="bg-muted rounded-xl p-1 h-auto">
-            <TabsTrigger value="preferences" className="rounded-lg data-[state=active]:shadow-sm text-xs font-semibold px-4 py-2">Preferences</TabsTrigger>
-            <TabsTrigger value="addresses" className="rounded-lg data-[state=active]:shadow-sm text-xs font-semibold px-4 py-2">Addresses</TabsTrigger>
-          </TabsList>
+          <div className="overflow-x-auto -mx-1 px-1 pb-1">
+            <TabsList className="bg-muted rounded-xl p-1 h-auto inline-flex w-auto min-w-full">
+              <TabsTrigger value="preferences" className="rounded-lg data-[state=active]:shadow-sm text-xs font-semibold px-4 py-2 flex-1 whitespace-nowrap">Preferences</TabsTrigger>
+              <TabsTrigger value="addresses" className="rounded-lg data-[state=active]:shadow-sm text-xs font-semibold px-4 py-2 flex-1 whitespace-nowrap">Addresses</TabsTrigger>
+            </TabsList>
+          </div>
 
           <TabsContent value="preferences" className="space-y-5">
             {/* Account Card */}

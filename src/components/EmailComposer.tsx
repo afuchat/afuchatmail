@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { X, Send, Paperclip, FileText, Clock, Sparkles, Wand2, CheckCheck, ArrowDownToLine, ArrowUpToLine, Loader2 } from "lucide-react";
+import { X, Send, Paperclip, FileText, Clock, Sparkles, Wand2, CheckCheck, ArrowDownToLine, ArrowUpToLine, Loader2, GripHorizontal } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useAIEmailAssist } from "@/hooks/useAIEmailAssist";
@@ -74,6 +74,63 @@ export const EmailComposer = ({ fromAddress: propFromAddress, onClose, replyTo, 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const autocompleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { toast } = useToast();
+
+  // Drag-to-move & resize (desktop only)
+  const [modalPos, setModalPos] = useState<{ x: number; y: number } | null>(null);
+  const [modalSize, setModalSize] = useState<{ w: number; h: number }>({ w: 768, h: 560 });
+  const isDraggingModal = useRef(false);
+  const isResizingModal = useRef(false);
+  const dragStart = useRef({ mx: 0, my: 0, px: 0, py: 0 });
+  const resizeStart = useRef({ mx: 0, my: 0, w: 0, h: 0 });
+
+  const handleModalDragStart = (e: React.MouseEvent) => {
+    if (window.innerWidth < 1024) return;
+    e.preventDefault();
+    const px = modalPos?.x ?? (window.innerWidth / 2 - modalSize.w / 2);
+    const py = modalPos?.y ?? (window.innerHeight / 2 - modalSize.h / 2);
+    isDraggingModal.current = true;
+    dragStart.current = { mx: e.clientX, my: e.clientY, px, py };
+    const onMove = (ev: MouseEvent) => {
+      if (!isDraggingModal.current) return;
+      const nx = dragStart.current.px + (ev.clientX - dragStart.current.mx);
+      const ny = dragStart.current.py + (ev.clientY - dragStart.current.my);
+      setModalPos({ x: Math.max(0, Math.min(window.innerWidth - modalSize.w, nx)), y: Math.max(0, Math.min(window.innerHeight - 80, ny)) });
+    };
+    const onUp = () => {
+      isDraggingModal.current = false;
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+      document.body.style.userSelect = "";
+    };
+    document.body.style.userSelect = "none";
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  };
+
+  const handleModalResizeStart = (e: React.MouseEvent) => {
+    if (window.innerWidth < 1024) return;
+    e.preventDefault();
+    e.stopPropagation();
+    isResizingModal.current = true;
+    resizeStart.current = { mx: e.clientX, my: e.clientY, w: modalSize.w, h: modalSize.h };
+    const onMove = (ev: MouseEvent) => {
+      if (!isResizingModal.current) return;
+      const nw = Math.max(480, Math.min(window.innerWidth - 40, resizeStart.current.w + (ev.clientX - resizeStart.current.mx)));
+      const nh = Math.max(400, Math.min(window.innerHeight - 40, resizeStart.current.h + (ev.clientY - resizeStart.current.my)));
+      setModalSize({ w: nw, h: nh });
+    };
+    const onUp = () => {
+      isResizingModal.current = false;
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+      document.body.style.userSelect = "";
+      document.body.style.cursor = "";
+    };
+    document.body.style.userSelect = "none";
+    document.body.style.cursor = "se-resize";
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  };
 
   const {
     loading: aiLoading,
@@ -287,11 +344,33 @@ export const EmailComposer = ({ fromAddress: propFromAddress, onClose, replyTo, 
     } finally { setSending(false); }
   };
 
+  // Desktop: positioned + sized; mobile: sheet from bottom
+  const isDesktop = typeof window !== "undefined" && window.innerWidth >= 1024;
+  const desktopStyle = isDesktop ? {
+    position: "fixed" as const,
+    left: modalPos ? modalPos.x : "50%",
+    top: modalPos ? modalPos.y : "50%",
+    transform: modalPos ? "none" : "translate(-50%, -50%)",
+    width: modalSize.w,
+    height: modalSize.h,
+    maxWidth: "calc(100vw - 40px)",
+    maxHeight: "calc(100dvh - 40px)",
+    zIndex: 50,
+  } : {};
+
   return (
-    <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-foreground/40 backdrop-blur-sm">
-      <div className="w-full max-w-3xl bg-card rounded-t-2xl md:rounded overflow-hidden max-h-[95dvh] md:max-h-[85vh] flex flex-col animate-in slide-in-from-bottom-4 duration-300">
-        <div className="flex items-center justify-between px-5 py-3.5 bg-card">
+    <div className={isDesktop ? "fixed inset-0 z-40 bg-foreground/30 backdrop-blur-sm" : "fixed inset-0 z-50 flex items-end justify-center bg-foreground/40 backdrop-blur-sm"}>
+      <div
+        className="relative bg-card rounded-t-2xl lg:rounded overflow-hidden flex flex-col animate-in slide-in-from-bottom-4 duration-300 w-full max-w-3xl max-h-[95dvh] lg:shadow-2xl"
+        style={isDesktop ? desktopStyle : {}}
+      >
+        {/* Header — drag handle on desktop */}
+        <div
+          className="flex items-center justify-between px-5 py-3.5 bg-card border-b border-border flex-shrink-0 lg:cursor-move"
+          onMouseDown={handleModalDragStart}
+        >
           <div className="flex items-center gap-2">
+            <GripHorizontal className="h-4 w-4 text-muted-foreground hidden lg:block opacity-50" />
             <h2 className="text-base font-bold">New Message</h2>
             {aiLoading && <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />}
           </div>
@@ -499,6 +578,17 @@ export const EmailComposer = ({ fromAddress: propFromAddress, onClose, replyTo, 
               {sending ? "Sending..." : scheduledAt ? "Schedule" : "Send"}
             </Button>
           </div>
+        </div>
+
+        {/* Resize handle — desktop only, bottom-right corner */}
+        <div
+          className="hidden lg:block absolute bottom-0 right-0 w-5 h-5 cursor-se-resize opacity-30 hover:opacity-80 transition-opacity"
+          onMouseDown={handleModalResizeStart}
+          style={{ touchAction: "none" }}
+        >
+          <svg viewBox="0 0 10 10" className="w-full h-full text-muted-foreground fill-current">
+            <path d="M 10 0 L 10 10 L 0 10 Z" />
+          </svg>
         </div>
       </div>
     </div>

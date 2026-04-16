@@ -1,7 +1,7 @@
-import { Mail, Search, Settings, Inbox } from "lucide-react";
+import { Mail, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export type TabId = "mail" | "search" | "settings";
+export type TabId = "mail" | "search";
 
 interface BottomTabBarProps {
   activeTab: TabId;
@@ -13,11 +13,10 @@ export const BottomTabBar = ({ activeTab, onTabChange, unreadCount = 0 }: Bottom
   const tabs: { id: TabId; label: string; icon: typeof Mail }[] = [
     { id: "mail", label: "Mail", icon: Mail },
     { id: "search", label: "Search", icon: Search },
-    { id: "settings", label: "Settings", icon: Settings },
   ];
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-card/95 backdrop-blur-xl shadow-[0_-1px_3px_0_hsl(220_20%_10%/0.05)] safe-area-bottom">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-card/95 backdrop-blur-xl border-t border-border safe-area-bottom">
       <div className="flex items-stretch max-w-lg mx-auto">
         {tabs.map((tab) => {
           const Icon = tab.icon;
@@ -27,7 +26,7 @@ export const BottomTabBar = ({ activeTab, onTabChange, unreadCount = 0 }: Bottom
               key={tab.id}
               onClick={() => onTabChange(tab.id)}
               className={cn(
-                "flex-1 flex flex-col items-center gap-0.5 py-2 pt-2.5 transition-all duration-200 relative touch-active",
+                "flex-1 flex flex-col items-center gap-0.5 py-2 pt-2.5 transition-all duration-200 relative",
                 isActive ? "text-primary" : "text-muted-foreground active:text-foreground"
               )}
             >
