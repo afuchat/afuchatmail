@@ -53,6 +53,19 @@ interface Attachment {
   path: string;
 }
 
+const MAX_ATTACHMENT_SIZE_BYTES = 10 * 1024 * 1024;
+
+const buildSafeAttachmentPath = (userId: string, file: File) => {
+  const fileExt = file.name.includes(".") ? file.name.split(".").pop() : "bin";
+  const baseName = file.name
+    .replace(/\.[^/.]+$/, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9-_]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 48) || "attachment";
+  return `${userId}/${crypto.randomUUID()}-${baseName}.${fileExt?.toLowerCase() || "bin"}`;
+};
+
 export const EmailComposer = ({ fromAddress: propFromAddress, onClose, replyTo, initialBody }: EmailComposerProps) => {
   const [fromAddress, setFromAddress] = useState(propFromAddress || "");
   const [userEmails, setUserEmails] = useState<Array<{ id: string; full_email: string }>>([]);
@@ -245,17 +258,22 @@ export const EmailComposer = ({ fromAddress: propFromAddress, onClose, replyTo, 
       if (!user) throw new Error("Not authenticated");
       const uploadedAttachments: Attachment[] = [];
       for (const file of Array.from(files)) {
-        if (file.size > 10485760) {
+        if (file.size > MAX_ATTACHMENT_SIZE_BYTES) {
           toast({ title: "File too large", description: `${file.name} exceeds 10MB limit`, variant: "destructive" });
           continue;
         }
-        const fileExt = file.name.split('.').pop();
-        const fileName = `${user.id}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
-        const { data, error } = await supabase.storage.from("email-attachments").upload(fileName, file);
+        const fileName = buildSafeAttachmentPath(user.id, file);
+        const { data, error } = await supabase.storage.from("email-attachments").upload(fileName, file, {
+          cacheControl: "3600",
+          contentType: file.type || "application/octet-stream",
+          upsert: false,
+        });
         if (error) throw error;
+        if (!data?.path) throw new Error(`Upload failed for ${file.name}`);
         uploadedAttachments.push({ id: data.path, name: file.name, size: file.size, path: data.path });
       }
-      setAttachments([...attachments, ...uploadedAttachments]);
+      if (uploadedAttachments.length === 0) return;
+      setAttachments((current) => [...current, ...uploadedAttachments]);
       toast({ title: "Files uploaded", description: `${uploadedAttachments.length} file(s) attached` });
     } catch (error: any) {
       toast({ title: "Upload failed", description: error.message, variant: "destructive" });
@@ -534,7 +552,7 @@ export const EmailComposer = ({ fromAddress: propFromAddress, onClose, replyTo, 
           <div className="flex gap-1">
             <input ref={fileInputRef} type="file" multiple onChange={handleFileSelect} className="hidden" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv" />
             <Button variant="ghost" size="icon" className="rounded-xl" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
-              <Paperclip className="h-4 w-4" />
+              {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}
             </Button>
             <Popover open={showSchedule} onOpenChange={setShowSchedule}>
               <PopoverTrigger asChild>

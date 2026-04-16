@@ -7,45 +7,44 @@ interface LinkifyProps {
 }
 
 export const Linkify = ({ text }: LinkifyProps) => {
-  // Regular expressions for URL and email detection
-  const urlRegex = /(https?:\/\/[^\s]+)/g;
-  const emailRegex = /([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)/g;
-  
-  // Split text by URLs and emails
-  const parts = text.split(/(\bhttps?:\/\/[^\s]+\b|[a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)/g);
+  const urlRegex = /^(https?:\/\/[^\s]+|www\.[^\s]+)$/i;
+  const emailRegex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+$/;
+  const parts = text.split(/(\bhttps?:\/\/[^\s<]+|\bwww\.[^\s<]+|[a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)/gi);
   
   return (
     <>
       {parts.map((part, index) => {
-        // Check if it's a URL
         if (urlRegex.test(part)) {
+          const trailing = part.match(/[.,!?;:)]+$/)?.[0] || "";
+          const cleanUrl = trailing ? part.slice(0, -trailing.length) : part;
+          const href = cleanUrl.startsWith("www.") ? `https://${cleanUrl}` : cleanUrl;
           return (
-            <a
-              key={index}
-              href={part}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-primary hover:underline break-all"
-            >
-              {part}
-            </a>
+            <span key={index}>
+              <a
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex rounded-md bg-primary/10 px-1.5 py-0.5 font-semibold text-primary underline decoration-primary/40 underline-offset-2 hover:bg-primary/15 hover:decoration-primary break-all"
+              >
+                {cleanUrl}
+              </a>
+              {trailing}
+            </span>
           );
         }
         
-        // Check if it's an email
         if (emailRegex.test(part)) {
           return (
             <a
               key={index}
               href={`mailto:${part}`}
-              className="text-primary hover:underline"
+              className="inline-flex rounded-md bg-primary/10 px-1.5 py-0.5 font-semibold text-primary underline decoration-primary/40 underline-offset-2 hover:bg-primary/15 hover:decoration-primary break-all"
             >
               {part}
             </a>
           );
         }
         
-        // Regular text
         return <span key={index}>{part}</span>;
       })}
     </>

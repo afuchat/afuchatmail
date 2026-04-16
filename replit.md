@@ -73,3 +73,5 @@ AfuChat Mail is a fully-featured @afuchat.com email service SPA built with React
 - NEVER use Replit Postgres or Replit env vars — everything uses Supabase
 - Do NOT modify Supabase edge functions unless explicitly asked
 - Keep all Supabase calls using `src/integrations/supabase/client.ts`
+- Backend changes should be delivered as SQL for the user to run in Supabase unless explicitly asked otherwise
+- Server/Postgres dependencies are intentionally not used; this is a Supabase-only frontend and Supabase Edge Functions app

@@ -137,17 +137,41 @@
   line-height: 1.65;
   color: hsl(var(--foreground));
   word-break: break-word;
+  opacity: 1;
 }
 .email-body a {
   color: hsl(var(--primary));
   text-decoration: underline;
+  text-decoration-color: hsl(var(--primary) / 0.45);
+  text-underline-offset: 3px;
+  font-weight: 700;
+  background: hsl(var(--primary) / 0.1);
+  border-radius: 6px;
+  padding: 1px 5px;
+}
+.email-body a:hover {
+  background: hsl(var(--primary) / 0.16);
+  text-decoration-color: hsl(var(--primary));
+}
+.email-body button,
+.email-body [role="button"] {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 8px;
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  font-weight: 700;
+  padding: 6px 12px;
+  margin: 2px 0;
+  opacity: 1;
 }
 .email-body blockquote {
   border-left: 3px solid hsl(var(--border));
   padding-left: 1rem;
   margin: 0.75rem 0;
-  color: hsl(var(--muted-foreground));
+  color: hsl(var(--foreground));
   font-size: 13px;
+  opacity: 1;
 }
 .email-body pre {
   background: hsl(var(--muted));
@@ -173,6 +197,7 @@
   width: 100%;
   border-collapse: collapse;
   font-size: 13px;
+  color: hsl(var(--foreground));
 }
 .email-body td, .email-body th {
   padding: 6px 8px;

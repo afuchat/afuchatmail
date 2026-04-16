@@ -24,6 +24,7 @@ const plans = [
     href: "/auth",
     highlighted: false,
     skypayAmount: null,
+    planId: "starter",
   },
   {
     name: "Professional",
@@ -46,6 +47,7 @@ const plans = [
     highlighted: true,
     skypayAmount: 15000,
     skypayDescription: "AfuChat Mail Professional — Monthly",
+    planId: "professional",
   },
   {
     name: "Business",
@@ -68,6 +70,7 @@ const plans = [
     highlighted: false,
     skypayAmount: 50000,
     skypayDescription: "AfuChat Mail Business — Monthly",
+    planId: "business",
   },
 ];
 
@@ -95,9 +98,18 @@ const Pricing = () => {
     if (plan.skypayAmount) {
       const params = new URLSearchParams({
         amount: plan.skypayAmount.toString(),
+        currency: "UGX",
         description: plan.skypayDescription || plan.name,
         merchant: "AfuChat Mail",
+        plan: plan.planId,
+        billing_cycle: "monthly",
+        environment: "production",
+        mode: "live",
+        test: "false",
+        reference: `afuchat-${plan.planId}-${Date.now()}`,
         callback_url: `${window.location.origin}/dashboard`,
+        success_url: `${window.location.origin}/dashboard?payment=success&plan=${plan.planId}`,
+        cancel_url: `${window.location.origin}/pricing?payment=cancelled&plan=${plan.planId}`,
       });
       window.open(`${SKYPAY_CHECKOUT_BASE}?${params.toString()}`, "_blank");
     }

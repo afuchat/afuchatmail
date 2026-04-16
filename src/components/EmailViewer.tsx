@@ -40,6 +40,46 @@ interface EmailViewerProps {
   onReply: (initialBody?: string) => void;
 }
 
+const normalizeAttachments = (attachments: unknown): Attachment[] => {
+  if (!attachments) return [];
+  if (Array.isArray(attachments)) {
+    return attachments
+      .filter((attachment): attachment is Attachment => {
+        const value = attachment as Attachment;
+        return !!value?.name && typeof value.path === "string";
+      })
+      .map((attachment) => ({
+        name: attachment.name,
+        size: Number(attachment.size) || 0,
+        path: attachment.path,
+      }));
+  }
+  if (typeof attachments === "string") {
+    try {
+      return normalizeAttachments(JSON.parse(attachments));
+    } catch {
+      return [];
+    }
+  }
+  return [];
+};
+
+const normalizeEmail = (value: Email): Email => ({
+  ...value,
+  attachments: normalizeAttachments(value.attachments),
+});
+
+const sanitizeEmailHtml = (html: string) =>
+  DOMPurify.sanitize(html, {
+    ADD_ATTR: ["target"],
+    ALLOWED_TAGS: [
+      "a", "p", "br", "strong", "em", "u", "h1", "h2", "h3", "h4", "h5", "h6",
+      "ul", "ol", "li", "blockquote", "pre", "code", "div", "span", "img",
+      "table", "thead", "tbody", "tfoot", "tr", "td", "th", "button"
+    ],
+    ALLOWED_ATTR: ["href", "target", "rel", "src", "alt", "title", "class", "role", "aria-label", "colspan", "rowspan"],
+  });
+
 export const EmailViewer = ({ email, onBack, onReply }: EmailViewerProps) => {
   const { toast } = useToast();
   const [threadEmails, setThreadEmails] = useState<Email[]>([]);
@@ -56,7 +96,7 @@ export const EmailViewer = ({ email, onBack, onReply }: EmailViewerProps) => {
     if (email.thread_id) {
       fetchThreadEmails();
     } else {
-      setThreadEmails([email]);
+      setThreadEmails([normalizeEmail(email)]);
     }
     checkIfTrashFolder();
   }, [email.id]);
@@ -101,15 +141,12 @@ export const EmailViewer = ({ email, onBack, onReply }: EmailViewerProps) => {
       if (error) throw error;
       
       // Cast attachments to proper type
-      const typedEmails = (data || []).map(e => ({
-        ...e,
-        attachments: (e.attachments as any) as Attachment[] | undefined
-      })) as Email[];
+      const typedEmails = ((data || []) as Email[]).map(normalizeEmail);
       
-      setThreadEmails(typedEmails.length > 0 ? typedEmails : [email]);
+      setThreadEmails(typedEmails.length > 0 ? typedEmails : [normalizeEmail(email)]);
     } catch (error: any) {
       console.error("Error fetching thread:", error);
-      setThreadEmails([email]);
+      setThreadEmails([normalizeEmail(email)]);
     } finally {
       setLoadingThread(false);
     }
@@ -270,11 +307,13 @@ export const EmailViewer = ({ email, onBack, onReply }: EmailViewerProps) => {
 
   const handleDownloadAttachment = async (attachment: Attachment) => {
     try {
+      if (!attachment.path) throw new Error("Attachment path is missing");
       const { data, error } = await supabase.storage
         .from("email-attachments")
         .download(attachment.path);
 
       if (error) throw error;
+      if (!data) throw new Error("Attachment file was not returned");
 
       // Create a download link
       const url = URL.createObjectURL(data);
@@ -418,23 +457,18 @@ export const EmailViewer = ({ email, onBack, onReply }: EmailViewerProps) => {
                 {/* Expanded email body */}
                 {isExpanded && (
                   <div className="px-4 pb-4">
-                    <div className="prose prose-sm max-w-none mb-4">
+                    <div className="email-body mb-4">
                       {threadEmail.body_html ? (
                         <div 
                           dangerouslySetInnerHTML={{ 
-                            __html: DOMPurify.sanitize(threadEmail.body_html, {
-                              ADD_ATTR: ['target'],
-                              ALLOWED_TAGS: ['a', 'p', 'br', 'strong', 'em', 'u', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li', 'blockquote', 'pre', 'code', 'div', 'span', 'img'],
-                              ALLOWED_ATTR: ['href', 'target', 'rel', 'src', 'alt', 'title', 'class']
-                            }) 
+                            __html: sanitizeEmailHtml(threadEmail.body_html)
                           }} 
                           onClick={(e) => {
-                            // Make all links open in new tab with security attributes
                             const target = e.target as HTMLElement;
-                            if (target.tagName === 'A') {
-                              const link = target as HTMLAnchorElement;
-                              link.target = '_blank';
-                              link.rel = 'noopener noreferrer';
+                            const link = target.closest("a");
+                            if (link?.href) {
+                              e.preventDefault();
+                              window.open(link.href, "_blank", "noopener,noreferrer");
                             }
                           }}
                         />
