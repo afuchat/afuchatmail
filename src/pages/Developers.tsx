@@ -12,6 +12,8 @@ import { ArrowLeft, Plus, Copy, Trash2, Key, Book, Shield, Pencil, Mail } from "
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { usePlan } from "@/hooks/usePlan";
+import { User } from "@supabase/supabase-js";
 
 interface OAuthApp {
   id: string;
@@ -39,6 +41,7 @@ const Developers = () => {
   const navigate = useNavigate();
   const [apps, setApps] = useState<OAuthApp[]>([]);
   const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState<User | null>(null);
   const [newAppName, setNewAppName] = useState("");
   const [newAppRedirectUri, setNewAppRedirectUri] = useState("");
   const [selectedScopes, setSelectedScopes] = useState<string[]>(["read:mailbox", "read:messages"]);
@@ -47,6 +50,14 @@ const Developers = () => {
   const [editingApp, setEditingApp] = useState<OAuthApp | null>(null);
   const [editScopes, setEditScopes] = useState<string[]>([]);
   const [showSecrets, setShowSecrets] = useState<Record<string, boolean>>({});
+  const { plan } = usePlan(user);
+  const canCreateApps = plan.tier === "business" || plan.isAdmin;
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+    });
+  }, []);
 
   useEffect(() => {
     fetchApps();
@@ -74,6 +85,10 @@ const Developers = () => {
   };
 
   const createApp = async () => {
+    if (!canCreateApps) {
+      toast.error("OAuth API access requires the Business plan. Upgrade to continue.");
+      return;
+    }
     if (!newAppName.trim()) {
       toast.error("Please enter an app name");
       return;
