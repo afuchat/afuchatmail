@@ -55,6 +55,10 @@ const Settings = ({ embedded = false }: { embedded?: boolean }) => {
   const [telegramUsername, setTelegramUsername] = useState<string | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { plan, refresh: refreshPlan } = usePlan(user);
+  const planLimits = PLAN_LIMITS[plan.tier];
+  const primaryCount = emails.filter(e => !e.is_alias).length;
+  const atAddressLimit = primaryCount >= planLimits.primaryAddresses;
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
