@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -8,8 +8,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Mail, ArrowLeft, Save, Plus, Trash2, Copy, LogOut, MessageCircle, Link2, Unlink, CreditCard, Crown, ExternalLink, AlertTriangle } from "lucide-react";
+import { Mail, ArrowLeft, Save, Plus, Trash2, Copy, LogOut, MessageCircle, Link2, Unlink, CreditCard, Crown, ExternalLink, AlertTriangle, Camera, Loader2 } from "lucide-react";
 import { User } from "@supabase/supabase-js";
+import { avatarColor, initials } from "@/lib/avatar";
 // Templates removed from settings
 import { EmailAddressSwitcher } from "@/components/EmailAddressSwitcher";
 import { PushNotificationToggle } from "@/components/PushNotificationToggle";
