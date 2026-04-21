@@ -67,6 +67,12 @@ const Settings = ({ embedded = false }: { embedded?: boolean }) => {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [deletingAccount, setDeletingAccount] = useState(false);
+  // Profile (full name + avatar)
+  const [profileName, setProfileName] = useState("");
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
   const { plan, refresh: refreshPlan } = usePlan(user);
