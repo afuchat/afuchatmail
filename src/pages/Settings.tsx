@@ -58,7 +58,10 @@ const Settings = ({ embedded = false }: { embedded?: boolean }) => {
   const { plan, refresh: refreshPlan } = usePlan(user);
   const planLimits = PLAN_LIMITS[plan.tier];
   const primaryCount = emails.filter(e => !e.is_alias).length;
-  const atAddressLimit = primaryCount >= planLimits.primaryAddresses;
+  const isAdmin = plan.isAdmin;
+  // Non-admins get exactly one mailbox: the address they signed up with.
+  // Only admins can mint additional primaries or aliases.
+  const atAddressLimit = !isAdmin || primaryCount >= planLimits.primaryAddresses;
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
