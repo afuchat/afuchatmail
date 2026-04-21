@@ -330,6 +330,8 @@ const Settings = ({ embedded = false }: { embedded?: boolean }) => {
       setUploadingAvatar(false);
     }
   };
+
+  return (
     <div className={embedded ? "h-full" : "min-h-screen bg-background"}>
       {!embedded && (
         <header className="sticky top-0 z-10 bg-card/80 backdrop-blur-xl">
