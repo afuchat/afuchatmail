@@ -396,12 +396,14 @@ async function handleUserMe(context: { userId: string; emailAddressId: string; s
   if (hasScope(context.scopes, "profile") || hasScope(context.scopes, "openid")) {
     const { data: profile } = await supabase
       .from("profiles")
-      .select("id, full_name, created_at")
+      .select("id, full_name, avatar_url, created_at")
       .eq("id", context.userId)
       .single();
 
     if (profile) {
       response.name = profile.full_name || null;
+      // OIDC standard claim for profile picture
+      response.picture = profile.avatar_url || null;
       response.created_at = profile.created_at;
     }
   }
