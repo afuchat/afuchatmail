@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -8,8 +8,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Mail, ArrowLeft, Save, Plus, Trash2, Copy, LogOut, MessageCircle, Link2, Unlink, CreditCard, Crown, ExternalLink, AlertTriangle } from "lucide-react";
+import { Mail, ArrowLeft, Save, Plus, Trash2, Copy, LogOut, MessageCircle, Link2, Unlink, CreditCard, Crown, ExternalLink, AlertTriangle, Camera, Loader2 } from "lucide-react";
 import { User } from "@supabase/supabase-js";
+import { avatarColor, initials } from "@/lib/avatar";
 // Templates removed from settings
 import { EmailAddressSwitcher } from "@/components/EmailAddressSwitcher";
 import { PushNotificationToggle } from "@/components/PushNotificationToggle";
@@ -66,6 +67,12 @@ const Settings = ({ embedded = false }: { embedded?: boolean }) => {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [deletingAccount, setDeletingAccount] = useState(false);
+  // Profile (full name + avatar)
+  const [profileName, setProfileName] = useState("");
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
   const { plan, refresh: refreshPlan } = usePlan(user);
@@ -79,7 +86,12 @@ const Settings = ({ embedded = false }: { embedded?: boolean }) => {
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session) { navigate("/auth"); }
-      else { setUser(session.user); fetchEmails(session.user.id); fetchTelegramStatus(session.user.id); }
+      else {
+        setUser(session.user);
+        fetchEmails(session.user.id);
+        fetchTelegramStatus(session.user.id);
+        fetchProfile(session.user.id);
+      }
     });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (!session) { navigate("/auth"); } else { setUser(session.user); }
@@ -238,6 +250,87 @@ const Settings = ({ embedded = false }: { embedded?: boolean }) => {
     }
   };
 
+  const fetchProfile = async (userId: string) => {
+    const { data } = await supabase
+      .from("profiles")
+      .select("full_name, avatar_url")
+      .eq("id", userId)
+      .maybeSingle();
+    if (data) {
+      setProfileName((data as any).full_name ?? "");
+      setAvatarUrl((data as any).avatar_url ?? null);
+    }
+  };
+
+  const handleSaveProfile = async () => {
+    if (!user) return;
+    setSavingProfile(true);
+    try {
+      const { error } = await supabase
+        .from("profiles")
+        .update({ full_name: profileName.trim() })
+        .eq("id", user.id);
+      if (error) throw error;
+      toast({ title: "Profile updated" });
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Couldn't save", description: err.message });
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
+  const handleAvatarUpload = async (file: File) => {
+    if (!user) return;
+    if (!file.type.startsWith("image/")) {
+      toast({ variant: "destructive", title: "Pick an image file" });
+      return;
+    }
+    if (file.size > 4 * 1024 * 1024) {
+      toast({ variant: "destructive", title: "Image too large", description: "Max 4 MB." });
+      return;
+    }
+    setUploadingAvatar(true);
+    try {
+      const ext = file.name.split(".").pop()?.toLowerCase() || "png";
+      const path = `${user.id}/avatar-${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage
+        .from("avatars")
+        .upload(path, file, { upsert: true, cacheControl: "3600", contentType: file.type });
+      if (upErr) throw upErr;
+      const { data: pub } = supabase.storage.from("avatars").getPublicUrl(path);
+      const newUrl = pub.publicUrl;
+      const { error: dbErr } = await supabase
+        .from("profiles")
+        .update({ avatar_url: newUrl })
+        .eq("id", user.id);
+      if (dbErr) throw dbErr;
+      setAvatarUrl(newUrl);
+      toast({ title: "Profile picture updated" });
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Upload failed", description: err.message });
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
+
+  const handleRemoveAvatar = async () => {
+    if (!user) return;
+    setUploadingAvatar(true);
+    try {
+      const { error } = await supabase
+        .from("profiles")
+        .update({ avatar_url: null })
+        .eq("id", user.id);
+      if (error) throw error;
+      setAvatarUrl(null);
+      toast({ title: "Profile picture removed" });
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Couldn't remove", description: err.message });
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
+
   return (
     <div className={embedded ? "h-full" : "min-h-screen bg-background"}>
       {!embedded && (
@@ -273,6 +366,75 @@ const Settings = ({ embedded = false }: { embedded?: boolean }) => {
           </div>
 
           <TabsContent value="preferences" className="space-y-5">
+            {/* Profile Card — avatar + name */}
+            <div className="bg-card rounded p-4">
+              <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-3">Profile</h2>
+              <div className="flex items-start gap-4">
+                <div className="relative shrink-0">
+                  {avatarUrl ? (
+                    <img
+                      src={avatarUrl}
+                      alt={profileName || user?.email || "Profile"}
+                      className="h-16 w-16 rounded-full object-cover border border-border"
+                    />
+                  ) : (
+                    <div
+                      className="h-16 w-16 rounded-full flex items-center justify-center text-white font-semibold text-lg select-none"
+                      style={{ backgroundColor: avatarColor(user?.id ?? user?.email ?? "u") }}
+                      aria-hidden
+                    >
+                      {initials(profileName, user?.email)}
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => avatarInputRef.current?.click()}
+                    disabled={uploadingAvatar}
+                    className="absolute -bottom-1 -right-1 h-7 w-7 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow hover:bg-primary/90 disabled:opacity-50"
+                    aria-label="Change profile picture"
+                  >
+                    {uploadingAvatar ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Camera className="h-3.5 w-3.5" />}
+                  </button>
+                  <input
+                    ref={avatarInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) handleAvatarUpload(f);
+                      e.target.value = "";
+                    }}
+                  />
+                </div>
+                <div className="flex-1 min-w-0 space-y-2">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="profileName" className="text-xs font-medium">Display name</Label>
+                    <Input
+                      id="profileName"
+                      type="text"
+                      placeholder="Your name"
+                      value={profileName}
+                      onChange={(e) => setProfileName(e.target.value)}
+                      maxLength={80}
+                      className="h-9 rounded text-sm"
+                    />
+                  </div>
+                  <p className="text-[11px] text-muted-foreground truncate">{user?.email}</p>
+                  <div className="flex gap-2 pt-1">
+                    <Button size="sm" className="h-8 rounded-lg text-xs" onClick={handleSaveProfile} disabled={savingProfile}>
+                      {savingProfile ? "Saving…" : "Save"}
+                    </Button>
+                    {avatarUrl && (
+                      <Button size="sm" variant="outline" className="h-8 rounded-lg text-xs" onClick={handleRemoveAvatar} disabled={uploadingAvatar}>
+                        Remove picture
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
             {/* Account Card */}
             <div className="bg-card rounded p-4">
               <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-3">Account</h2>
