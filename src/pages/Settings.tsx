@@ -220,6 +220,24 @@ const Settings = ({ embedded = false }: { embedded?: boolean }) => {
     }
   };
 
+  const handleDeleteAccount = async () => {
+    if (deleteConfirmText !== "DELETE") return;
+    setDeletingAccount(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("delete-account", {
+        body: { confirm: "DELETE" },
+      });
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || "Account deletion failed");
+      await supabase.auth.signOut();
+      toast({ title: "Account deleted", description: "Your account and all data have been permanently removed." });
+      navigate("/auth");
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Couldn't delete account", description: err.message });
+      setDeletingAccount(false);
+    }
+  };
+
   return (
     <div className={embedded ? "h-full" : "min-h-screen bg-background"}>
       {!embedded && (
