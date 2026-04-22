@@ -666,7 +666,7 @@ const Settings = ({ embedded = false }: { embedded?: boolean }) => {
             </div>
 
             {/* Create New Card — admins only */}
-            {isAdmin ? (
+            {isAdmin && (
               <div className="bg-card rounded p-4">
                 <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-3">New address or alias</h2>
                 <form onSubmit={handleCreateEmail} className="space-y-3">
@@ -681,7 +681,7 @@ const Settings = ({ embedded = false }: { embedded?: boolean }) => {
                       <Plus className="h-4 w-4" />
                     </Button>
                   </div>
-                  <p className="text-xs text-muted-foreground">3-30 characters, lowercase letters, numbers, dots, hyphens. Admins can create unlimited mailboxes and aliases.</p>
+                  <p className="text-xs text-muted-foreground">3-30 characters, lowercase letters, numbers, dots, hyphens.</p>
                 </form>
               </div>
             )}
