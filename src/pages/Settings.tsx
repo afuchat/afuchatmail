@@ -78,9 +78,13 @@ const Settings = ({ embedded = false }: { embedded?: boolean }) => {
   const { plan, refresh: refreshPlan } = usePlan(user);
   const planLimits = PLAN_LIMITS[plan.tier];
   const primaryCount = emails.filter(e => !e.is_alias).length;
+  const aliasCount = emails.filter(e => e.is_alias).length;
   const isAdmin = plan.isAdmin;
-  // Non-admins get exactly one mailbox: the address they signed up with.
-  // Only admins can mint additional primaries or aliases.
+  const canCreateAliases = isAdmin || plan.tier === "professional" || plan.tier === "business";
+  const aliasLimit = planLimits.aliases;
+  const atAliasLimit = aliasCount >= aliasLimit;
+  const primaryAddress = emails.find(e => e.is_primary);
+  // Non-admins cannot create new primary mailboxes.
   const atAddressLimit = !isAdmin || primaryCount >= planLimits.primaryAddresses;
 
   useEffect(() => {
