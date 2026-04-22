@@ -107,6 +107,14 @@ export const EmailViewer = ({ email, onBack, onReply }: EmailViewerProps) => {
   const [loadingThread, setLoadingThread] = useState(false);
   const [showSnoozeDialog, setShowSnoozeDialog] = useState(false);
   const [expandedEmails, setExpandedEmails] = useState<Set<string>>(new Set([email.id]));
+
+  // Always auto-expand the LATEST message in the thread (not the one the
+  // user clicked from the list, and not any previously expanded message).
+  useEffect(() => {
+    if (threadEmails.length === 0) return;
+    const latest = threadEmails[threadEmails.length - 1];
+    setExpandedEmails(new Set([latest.id]));
+  }, [threadEmails]);
   const [isTrashFolder, setIsTrashFolder] = useState(false);
   const [senderAvatars, setSenderAvatars] = useState<Record<string, string>>({});
   const { loading: aiLoading, smartReplies, getSmartReplies } = useAIEmailAssist();
