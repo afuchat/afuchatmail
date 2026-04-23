@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import {
-  Activity, CheckCircle2, AlertCircle, AlertTriangle, Clock, Mail, Shield,
+  Activity, CheckCircle2, AlertCircle, AlertTriangle, Mail, Shield,
   Database, Radio, HardDrive, Sparkles, MessageCircle, CreditCard, Bell,
   RefreshCw, Loader2, Globe,
 } from "lucide-react";
@@ -352,21 +352,6 @@ const Status = () => {
         </div>
       </section>
 
-      {/* ── Incident history (static placeholder) ─────────────────────── */}
-      <section className="mt-10 rounded-2xl border bg-card p-5 sm:p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-semibold">Recent incidents</h2>
-          <span className="text-xs text-muted-foreground">Past 90 days</span>
-        </div>
-        <div className="space-y-3">
-          <IncidentRow
-            tone="ok"
-            date="No incidents in the last 90 days"
-            title="All clear"
-            description="Every service has been operating within expected parameters."
-          />
-        </div>
-      </section>
     </PageLayout>
   );
 };
@@ -481,31 +466,6 @@ function StatusPill({ state }: { state: ServiceState }) {
   );
 }
 
-// ─── Incident row ───────────────────────────────────────────────────────────
-
-function IncidentRow({
-  tone, date, title, description,
-}: { tone: "ok" | "warn" | "crit"; date: string; title: string; description: string }) {
-  const toneCls = {
-    ok:   "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
-    warn: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
-    crit: "bg-red-500/10 text-red-600 dark:text-red-400",
-  }[tone];
-  const Icon = tone === "ok" ? CheckCircle2 : tone === "warn" ? AlertTriangle : AlertCircle;
-  return (
-    <div className="flex gap-3 rounded-xl bg-background p-3 border border-border/60">
-      <div className={cn("mt-0.5 h-8 w-8 rounded-lg flex items-center justify-center shrink-0", toneCls)}>
-        <Icon className="h-4 w-4" />
-      </div>
-      <div className="min-w-0">
-        <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{date}</p>
-        <h3 className="mt-0.5 text-sm font-semibold">{title}</h3>
-        <p className="mt-0.5 text-xs text-muted-foreground leading-5">{description}</p>
-      </div>
-    </div>
-  );
-}
-
 // ─── Util ───────────────────────────────────────────────────────────────────
 
 function timeAgo(ts: number): string {
@@ -517,6 +477,3 @@ function timeAgo(ts: number): string {
   const h = Math.round(m / 60);
   return `${h}h ago`;
 }
-
-// Note: Clock import preserved in case PageLayout shows it
-export { Clock };

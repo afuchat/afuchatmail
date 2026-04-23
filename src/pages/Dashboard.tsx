@@ -15,6 +15,7 @@ import { PWAInstallPrompt } from "@/components/PWAInstallPrompt";
 import { BottomTabBar, TabId } from "@/components/BottomTabBar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import { StatusDot } from "@/components/StatusDot";
 
 interface EmailAddress {
   id: string;
@@ -498,6 +499,8 @@ const Dashboard = () => {
                 <span className="text-sm text-muted-foreground">Search mail…</span>
               </div>
 
+              <StatusDot />
+
               <Button
                 variant="ghost"
                 size="icon"
@@ -601,6 +604,7 @@ const Dashboard = () => {
                 </button>
               )}
             </div>
+            <StatusDot />
             <Button
               className="h-9 rounded font-medium text-sm shadow-none flex-shrink-0"
               onClick={() => setShowComposer(true)}
