@@ -165,13 +165,19 @@ const Dashboard = () => {
     const params = new URLSearchParams(window.location.search);
     const payment = params.get("payment");
     const status = params.get("status");
-    const reference = params.get("reference");
+    // SkyPay may send the reference under different names — accept all
+    const reference =
+      params.get("reference") ||
+      params.get("reference_id") ||
+      params.get("referenceId") ||
+      params.get("payment_reference") ||
+      undefined;
+    const productId = params.get("product_id") || params.get("productId") || undefined;
     let planId = params.get("plan");
 
     // Derive planId from SkyPay product_id (clientReference is "afuchat-{planId}-{uuid}")
-    if (!planId) {
-      const productId = params.get("product_id");
-      const match = productId?.match(/^afuchat-(professional|business)-/);
+    if (!planId && productId) {
+      const match = productId.match(/^afuchat-(professional|business)-/);
       if (match) planId = match[1];
     }
 
