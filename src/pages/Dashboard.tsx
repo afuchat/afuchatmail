@@ -192,7 +192,7 @@ const Dashboard = () => {
 
     if (payment !== "success" && status !== "success") return;
 
-    if (!reference || !planId) {
+    if ((!reference && !productId) || !planId) {
       setPaymentConfirmation({
         status: "pending",
         message: "SkyPay returned you safely, but we couldn't read the payment reference. Open Settings → Billing to check status manually.",
@@ -208,11 +208,11 @@ const Dashboard = () => {
       setPaymentConfirmation({
         status: "checking",
         message: `Confirming your ${formatPlanName(planId)} payment with SkyPay...`,
-        reference,
+        reference: reference || productId,
       });
 
       const { data, error } = await supabase.functions.invoke("skypay-confirm-payment", {
-        body: { reference, planId },
+        body: { reference, productId, planId },
       });
 
       if (cancelled) return;
