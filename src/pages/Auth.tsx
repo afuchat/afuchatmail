@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Eye, EyeOff, AtSign, Mail, Check, X, Loader2, ArrowLeft, ArrowRight, Sparkles } from "lucide-react";
+import { Eye, EyeOff, AtSign, Check, X, Loader2, ArrowLeft, ArrowRight } from "lucide-react";
 import OAuthConsentScreen from "@/components/OAuthConsentScreen";
 import { avatarColor, initials } from "@/lib/avatar";
 
@@ -28,13 +28,12 @@ interface OAuthParams {
 const VALID_SCOPES = ["openid", "profile", "email", "read:mailbox", "read:messages", "read:folders", "search:messages", "write:messages", "write:drafts"];
 const MAIL_DOMAIN = "afuchat.com";
 const USERNAME_RE = /^[a-z0-9](?:[a-z0-9._-]{1,28}[a-z0-9])?$/;
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-type SignUpStep = "account" | "address" | "done";
+type SignUpStep = "name" | "username" | "password";
 
 const Auth = () => {
   const [mode, setMode] = useState<"signin" | "signup">("signin");
-  const [step, setStep] = useState<SignUpStep>("account");
+  const [step, setStep] = useState<SignUpStep>("name");
 
   // Sign-in state
   const [signInId, setSignInId] = useState("");
@@ -42,12 +41,10 @@ const Auth = () => {
   // Sign-up state
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
-  const [existingEmail, setExistingEmail] = useState("");
   const [username, setUsername] = useState("");
   const [usernameTouched, setUsernameTouched] = useState(false);
   const [usernameStatus, setUsernameStatus] = useState<"idle" | "checking" | "available" | "taken" | "invalid">("idle");
   const [password, setPassword] = useState("");
-  const [createdMailbox, setCreatedMailbox] = useState<string | null>(null);
 
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -125,9 +122,9 @@ const Auth = () => {
     return () => subscription.unsubscribe();
   }, [navigate, isOAuthFlow]);
 
-  // When the user reaches the address step, auto-derive a suggestion from their name (only if untouched).
+  // When the user reaches the username step, auto-derive a suggestion from their name (only if untouched).
   useEffect(() => {
-    if (mode !== "signup" || step !== "address" || usernameTouched) return;
+    if (mode !== "signup" || step !== "username" || usernameTouched) return;
     const seed = `${firstName}${lastName}`.toLowerCase().replace(/[^a-z0-9]/g, "");
     if (seed.length >= 2) setUsername(seed.slice(0, 30));
   }, [step, mode, firstName, lastName, usernameTouched]);
@@ -135,7 +132,7 @@ const Auth = () => {
   // Live username availability check via SECURITY DEFINER RPC so it sees ALL addresses
   // (including admin-created ones), not just the ones the current visitor can SELECT.
   useEffect(() => {
-    if (mode !== "signup" || step !== "address") return;
+    if (mode !== "signup" || step !== "username") return;
     const u = username.trim().toLowerCase();
     if (!u) { setUsernameStatus("idle"); return; }
     if (!USERNAME_RE.test(u)) { setUsernameStatus("invalid"); return; }
@@ -159,25 +156,27 @@ const Auth = () => {
     setStep(next);
   };
 
-  const handleAccountNext = (e: React.FormEvent) => {
+  const handleNameNext = (e: React.FormEvent) => {
     e.preventDefault();
     if (firstName.trim().length < 1 || lastName.trim().length < 1) {
       toast({ variant: "destructive", title: "Enter your name", description: "First and last name are both required." });
       return;
     }
-    if (!EMAIL_RE.test(existingEmail.trim())) {
-      toast({ variant: "destructive", title: "Enter a valid email", description: "We'll use it to secure your account and for recovery." });
+    goToStep("username");
+  };
+
+  const handleUsernameNext = (e: React.FormEvent) => {
+    e.preventDefault();
+    const u = username.trim().toLowerCase();
+    if (!USERNAME_RE.test(u)) {
+      toast({ variant: "destructive", title: "Pick a valid username", description: "2–30 chars, lowercase letters, numbers, dot, hyphen." });
       return;
     }
-    if (existingEmail.trim().toLowerCase().endsWith(`@${MAIL_DOMAIN}`)) {
-      toast({ variant: "destructive", title: "Use your existing email", description: `Please use an email from another provider — your @${MAIL_DOMAIN} address is created in the next step.` });
+    if (usernameStatus !== "available") {
+      toast({ variant: "destructive", title: "Username unavailable", description: "Please choose another username." });
       return;
     }
-    if (password.length < 8) {
-      toast({ variant: "destructive", title: "Pick a stronger password", description: "Use at least 8 characters." });
-      return;
-    }
-    goToStep("address");
+    goToStep("password");
   };
 
   const handleSignIn = async (e: React.FormEvent) => {
@@ -203,48 +202,45 @@ const Auth = () => {
       const u = username.trim().toLowerCase();
       if (!USERNAME_RE.test(u)) throw new Error("Invalid username.");
       if (password.length < 8) throw new Error("Password must be at least 8 characters.");
-      const recoveryEmail = existingEmail.trim().toLowerCase();
-      if (!EMAIL_RE.test(recoveryEmail)) throw new Error("Please enter a valid email on the previous step.");
 
       // Final availability check right before submitting (race-safe).
       const { data: stillAvailable } = await supabase.rpc("username_available", { _username: u });
       if (stillAvailable === false) {
+        setStep("username");
         setUsernameStatus("taken");
-        throw new Error("That address was just taken. Please pick another.");
+        throw new Error("That username was just taken. Please pick another.");
       }
 
-      const mailbox = `${u}@${MAIL_DOMAIN}`;
+      const newEmail = `${u}@${MAIL_DOMAIN}`;
       const { error: signUpError } = await supabase.auth.signUp({
-        email: recoveryEmail,
+        email: newEmail,
         password,
         options: {
           emailRedirectTo: isOAuthFlow
             ? `${window.location.origin}/auth?${searchParams.toString()}`
             : `${window.location.origin}/dashboard`,
-          data: {
-            full_name: fullName,
-            username: u,
-            first_name: firstName.trim(),
-            last_name: lastName.trim(),
-            recovery_email: recoveryEmail,
-          },
+          data: { full_name: fullName, username: u, first_name: firstName.trim(), last_name: lastName.trim() },
         },
       });
       if (signUpError) throw signUpError;
 
-      setCreatedMailbox(mailbox);
-
       // Auto sign-in so the user lands in their inbox immediately and can start receiving mail right away.
-      const { error: signInError } = await supabase.auth.signInWithPassword({ email: recoveryEmail, password });
+      const { error: signInError } = await supabase.auth.signInWithPassword({ email: newEmail, password });
       if (signInError) {
-        // Account was created (likely needs email confirmation); show the success step anyway.
+        // Account was created; just ask them to sign in manually.
         toast({
           title: "Account created",
-          description: `Confirm your email at ${recoveryEmail}, then sign in to open ${mailbox}.`,
+          description: `Your address is ${newEmail}. Please sign in to continue.`,
         });
+        setMode("signin");
+        setSignInId(u);
+        return;
       }
 
-      goToStep("done");
+      toast({
+        title: "Welcome to AfuChat Mail!",
+        description: `Your inbox ${newEmail} is ready — you can receive mail right away.`,
+      });
     } catch (err: any) {
       toast({ variant: "destructive", title: "Sign-up failed", description: err.message });
     } finally {
@@ -272,7 +268,7 @@ const Auth = () => {
   }
 
   const usernamePreview = username.trim().toLowerCase();
-  const stepNumber = step === "account" ? 1 : step === "address" ? 2 : 3;
+  const stepNumber = step === "name" ? 1 : step === "username" ? 2 : 3;
 
   return (
     <div className="min-h-screen bg-background flex">
@@ -332,7 +328,7 @@ const Auth = () => {
               </form>
               <p className="mt-5 text-center text-sm text-muted-foreground">
                 New to AfuChat Mail?{" "}
-                <button type="button" onClick={() => { setMode("signup"); setStep("account"); setPassword(""); setCreatedMailbox(null); }} className="font-semibold text-primary hover:underline">
+                <button type="button" onClick={() => { setMode("signup"); setStep("name"); setPassword(""); }} className="font-semibold text-primary hover:underline">
                   Create an account
                 </button>
               </p>
@@ -346,60 +342,20 @@ const Auth = () => {
                 ))}
               </div>
 
-              {step === "account" && (
+              {step === "name" && (
                 <>
                   <div className="mb-6">
                     <h1 className="text-2xl font-bold tracking-tight mb-1">Create your account</h1>
-                    <p className="text-sm text-muted-foreground">Sign up with your existing email. No credit card, no hidden fees.</p>
+                    <p className="text-sm text-muted-foreground">Tell us your name to get started.</p>
                   </div>
-                  <form onSubmit={handleAccountNext} className="space-y-4">
-                    <div className="grid grid-cols-2 gap-2">
-                      <div className="space-y-1.5">
-                        <Label htmlFor="firstName" className="text-sm font-medium">First name</Label>
-                        <Input id="firstName" type="text" placeholder="Jane" value={firstName} onChange={e => setFirstName(e.target.value)} required maxLength={50} className="h-10 rounded text-sm" autoComplete="given-name" autoFocus />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label htmlFor="lastName" className="text-sm font-medium">Last name</Label>
-                        <Input id="lastName" type="text" placeholder="Smith" value={lastName} onChange={e => setLastName(e.target.value)} required maxLength={50} className="h-10 rounded text-sm" autoComplete="family-name" />
-                      </div>
+                  <form onSubmit={handleNameNext} className="space-y-4">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="firstName" className="text-sm font-medium">First name</Label>
+                      <Input id="firstName" type="text" placeholder="Jane" value={firstName} onChange={e => setFirstName(e.target.value)} required maxLength={50} className="h-10 rounded text-sm" autoComplete="given-name" autoFocus />
                     </div>
                     <div className="space-y-1.5">
-                      <Label htmlFor="existingEmail" className="text-sm font-medium">Your existing email</Label>
-                      <div className="relative">
-                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input
-                          id="existingEmail"
-                          type="email"
-                          placeholder="you@gmail.com"
-                          value={existingEmail}
-                          onChange={e => setExistingEmail(e.target.value)}
-                          required
-                          maxLength={120}
-                          className="pl-9 h-10 rounded text-sm"
-                          autoComplete="email"
-                          spellCheck={false}
-                        />
-                      </div>
-                      <p className="text-[11px] text-muted-foreground">Used to sign in and recover your account.</p>
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label htmlFor="password" className="text-sm font-medium">Password</Label>
-                      <div className="relative">
-                        <Input
-                          id="password"
-                          type={showPassword ? "text" : "password"}
-                          placeholder="At least 8 characters"
-                          value={password}
-                          onChange={e => setPassword(e.target.value)}
-                          required
-                          minLength={8}
-                          className="pr-10 h-10 rounded text-sm"
-                          autoComplete="new-password"
-                        />
-                        <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" onClick={() => setShowPassword(v => !v)} tabIndex={-1}>
-                          {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                        </button>
-                      </div>
+                      <Label htmlFor="lastName" className="text-sm font-medium">Last name</Label>
+                      <Input id="lastName" type="text" placeholder="Smith" value={lastName} onChange={e => setLastName(e.target.value)} required maxLength={50} className="h-10 rounded text-sm" autoComplete="family-name" />
                     </div>
                     <Button type="submit" className="w-full h-10 rounded font-semibold mt-2">
                       Next
@@ -409,7 +365,7 @@ const Auth = () => {
                 </>
               )}
 
-              {step === "address" && (
+              {step === "username" && (
                 <>
                   <div className="mb-6 flex items-center gap-3">
                     <div
@@ -420,11 +376,11 @@ const Auth = () => {
                       {initialsPreview}
                     </div>
                     <div className="min-w-0">
-                      <h1 className="text-xl font-bold tracking-tight">Pick your address</h1>
-                      <p className="text-sm text-muted-foreground">Choose yourname@{MAIL_DOMAIN} — it's instantly active and ready to use.</p>
+                      <h1 className="text-xl font-bold tracking-tight">Hi {firstName}!</h1>
+                      <p className="text-sm text-muted-foreground">Pick your AfuChat Mail address.</p>
                     </div>
                   </div>
-                  <form onSubmit={handleSignUp} className="space-y-4">
+                  <form onSubmit={handleUsernameNext} className="space-y-4">
                     <div className="space-y-1.5">
                       <Label htmlFor="username" className="text-sm font-medium">Choose your address</Label>
                       <div className="relative">
@@ -453,70 +409,72 @@ const Auth = () => {
                       </div>
                     </div>
                     <div className="flex gap-2">
-                      <Button type="button" variant="outline" className="h-10 rounded font-semibold" onClick={() => goToStep("account")} disabled={loading}>
+                      <Button type="button" variant="outline" className="h-10 rounded font-semibold" onClick={() => goToStep("name")}>
                         <ArrowLeft className="h-4 w-4 mr-1" /> Back
                       </Button>
-                      <Button type="submit" className="flex-1 h-10 rounded font-semibold" disabled={loading || usernameStatus !== "available"}>
-                        {loading ? "Creating…" : (<>Claim address <ArrowRight className="h-4 w-4 ml-1" /></>)}
+                      <Button type="submit" className="flex-1 h-10 rounded font-semibold" disabled={usernameStatus !== "available"}>
+                        Next <ArrowRight className="h-4 w-4 ml-1" />
                       </Button>
                     </div>
                   </form>
                 </>
               )}
 
-              {step === "done" && (
+              {step === "password" && (
                 <>
                   <div className="mb-6 flex items-center gap-3">
-                    <div className="h-12 w-12 rounded-full bg-[#0052ff]/10 flex items-center justify-center text-[#0052ff]" aria-hidden>
-                      <Sparkles className="h-5 w-5" />
+                    <div
+                      className="h-12 w-12 rounded-full flex items-center justify-center text-white font-semibold text-base shadow-sm"
+                      style={{ backgroundColor: colorPreview }}
+                      aria-hidden
+                    >
+                      {initialsPreview}
                     </div>
                     <div className="min-w-0">
-                      <h1 className="text-xl font-bold tracking-tight">Start communicating</h1>
-                      <p className="text-sm text-muted-foreground">Send and receive emails from any provider. Add aliases and customize notifications.</p>
+                      <h1 className="text-xl font-bold tracking-tight truncate">{usernamePreview}@{MAIL_DOMAIN}</h1>
+                      <p className="text-sm text-muted-foreground">Set a password to finish.</p>
                     </div>
                   </div>
-
-                  <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4 mb-4">
-                    <p className="text-[11px] uppercase tracking-wider font-semibold text-neutral-500 mb-1">Your new address</p>
-                    <p className="text-base font-semibold text-neutral-900 break-all">{createdMailbox ?? `${usernamePreview}@${MAIL_DOMAIN}`}</p>
-                    <div className="mt-3 space-y-1.5 text-xs text-neutral-600">
-                      <p className="flex items-center gap-1.5"><Check className="h-3 w-3 text-green-600 shrink-0" /> Inbox is live and ready to receive mail</p>
-                      <p className="flex items-center gap-1.5"><Check className="h-3 w-3 text-green-600 shrink-0" /> Send to any provider — Gmail, Outlook, Yahoo</p>
-                      <p className="flex items-center gap-1.5"><Check className="h-3 w-3 text-green-600 shrink-0" /> Add aliases & push notifications anytime</p>
+                  <form onSubmit={handleSignUp} className="space-y-4">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="password" className="text-sm font-medium">Password</Label>
+                      <div className="relative">
+                        <Input
+                          id="password"
+                          type={showPassword ? "text" : "password"}
+                          placeholder="At least 8 characters"
+                          value={password}
+                          onChange={e => setPassword(e.target.value)}
+                          required
+                          minLength={8}
+                          className="pr-10 h-10 rounded text-sm"
+                          autoComplete="new-password"
+                          autoFocus
+                        />
+                        <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" onClick={() => setShowPassword(v => !v)} tabIndex={-1}>
+                          {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground">Use 8+ characters with a mix of letters, numbers, and symbols.</p>
                     </div>
-                  </div>
-
-                  {isAuthenticated ? (
-                    <Button
-                      className="w-full h-10 rounded font-semibold"
-                      onClick={() => navigate(isOAuthFlow ? `/auth?${searchParams.toString()}` : "/dashboard")}
-                    >
-                      Open my inbox <ArrowRight className="h-4 w-4 ml-1" />
-                    </Button>
-                  ) : (
-                    <Button
-                      className="w-full h-10 rounded font-semibold"
-                      onClick={() => { setMode("signin"); setSignInId(existingEmail.trim().toLowerCase()); setPassword(""); setStep("account"); }}
-                    >
-                      Sign in to continue <ArrowRight className="h-4 w-4 ml-1" />
-                    </Button>
-                  )}
-                  {!isAuthenticated && (
-                    <p className="mt-3 text-[11px] text-center text-muted-foreground">
-                      Confirm the email we sent to <span className="font-medium">{existingEmail.trim().toLowerCase()}</span>, then sign in.
-                    </p>
-                  )}
+                    <div className="flex gap-2">
+                      <Button type="button" variant="outline" className="h-10 rounded font-semibold" onClick={() => goToStep("username")}>
+                        <ArrowLeft className="h-4 w-4 mr-1" /> Back
+                      </Button>
+                      <Button type="submit" className="flex-1 h-10 rounded font-semibold" disabled={loading || password.length < 8}>
+                        {loading ? "Creating…" : "Create my address"}
+                      </Button>
+                    </div>
+                  </form>
                 </>
               )}
 
-              {step !== "done" && (
-                <p className="mt-5 text-center text-sm text-muted-foreground">
-                  Already have an account?{" "}
-                  <button type="button" onClick={() => { setMode("signin"); setPassword(""); }} className="font-semibold text-primary hover:underline">
-                    Sign in
-                  </button>
-                </p>
-              )}
+              <p className="mt-5 text-center text-sm text-muted-foreground">
+                Already have an account?{" "}
+                <button type="button" onClick={() => { setMode("signin"); setPassword(""); }} className="font-semibold text-primary hover:underline">
+                  Sign in
+                </button>
+              </p>
             </>
           )}
 

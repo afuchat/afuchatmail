@@ -234,9 +234,9 @@ const Index = () => {
           </div>
           <div className="grid gap-4 md:grid-cols-3">
             {[
-              { step: "1", title: "Create your account", desc: "Sign up with your existing email. No credit card, no hidden fees." },
-              { step: "2", title: "Pick your address", desc: "Choose yourname@afuchat.com — it's instantly active and ready to use." },
-              { step: "3", title: "Start communicating", desc: "Send and receive emails from any provider. Add aliases and customize notifications." },
+              { step: "1", title: "Tell us your name", desc: "Just your first and last name to get started. No credit card required." },
+              { step: "2", title: "Pick your address", desc: "Choose yourname@afuchat.com — checked live as you type so you know it's yours." },
+              { step: "3", title: "Set a password", desc: "Create your password and your inbox is ready to send and receive right away." },
             ].map((item, i) => (
               <div key={i} className="rounded-xl bg-white p-7">
                 <div className="h-10 w-10 rounded-lg bg-[#0052ff] flex items-center justify-center mb-5">
