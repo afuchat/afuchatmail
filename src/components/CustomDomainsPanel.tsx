@@ -391,6 +391,25 @@ function DomainRow({
     }
     setNewLocalPart("");
     toast({ title: "Address created", description: `${local}@${domain.domain} is now active.` });
+    fetchAddresses();
+    onAddressCreated();
+  };
+
+  const handleDeleteAddress = async () => {
+    if (!deleteAddr) return;
+    setDeletingAddr(true);
+    const { error } = await supabase
+      .from("email_addresses")
+      .delete()
+      .eq("id", deleteAddr.id);
+    setDeletingAddr(false);
+    if (error) {
+      toast({ title: "Could not delete address", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: "Address removed", description: `${deleteAddr.full_email} no longer receives mail.` });
+    setDeleteAddr(null);
+    fetchAddresses();
     onAddressCreated();
   };
 
