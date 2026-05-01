@@ -25,6 +25,15 @@ interface CustomDomain {
   created_at: string;
 }
 
+interface DomainAddress {
+  id: string;
+  local_part: string;
+  full_email: string;
+  is_primary: boolean;
+  is_alias: boolean;
+  created_at: string;
+}
+
 interface DnsRecordResult {
   kind: "TXT" | "MX" | "CNAME";
   purpose: "verification" | "mx" | "spf" | "dkim" | "dmarc";
