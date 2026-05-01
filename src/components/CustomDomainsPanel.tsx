@@ -25,6 +25,19 @@ interface CustomDomain {
   created_at: string;
 }
 
+interface DnsRecordResult {
+  kind: "TXT" | "MX" | "CNAME";
+  purpose: "verification" | "mx" | "spf" | "dkim" | "dmarc";
+  name: string;
+  value: string;
+  priority?: number;
+  required: boolean;
+  description: string;
+  found?: boolean;
+  seen?: string[];
+  error?: string | null;
+}
+
 interface Props {
   user: User | null;
   tier: Tier;
