@@ -35,6 +35,9 @@ const AVAILABLE_SCOPES = [
   { id: "search", label: "Search", description: "Search through emails" },
   { id: "write:messages", label: "Write Messages", description: "Send emails on behalf of user" },
   { id: "write:drafts", label: "Write Drafts", description: "Create, edit, and delete drafts" },
+  { id: "modify:messages", label: "Modify Messages", description: "Mark read/unread, star, move, or delete messages" },
+  { id: "manage:addresses", label: "Manage Addresses", description: "Create, update, or remove email addresses and aliases" },
+  { id: "manage:folders", label: "Manage Folders", description: "Create, rename, or delete folders" },
 ];
 
 const Developers = () => {
