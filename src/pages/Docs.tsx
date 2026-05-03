@@ -9,7 +9,7 @@ import {
   Key,
   Shield,
   Zap,
-  Code,
+  Code as CodeIcon,
   FileText,
   Send,
   Copy,
