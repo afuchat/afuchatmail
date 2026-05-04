@@ -25,6 +25,7 @@ const Status = lazy(() => import("@/pages/Status"));
 const Changelog = lazy(() => import("@/pages/Changelog"));
 const Admin = lazy(() => import("@/pages/Admin"));
 const TelegramMiniApp = lazy(() => import("@/pages/TelegramMiniApp"));
+const OAuthAuthorize = lazy(() => import("@/pages/OAuthAuthorize"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 
 const queryClient = new QueryClient({
@@ -72,6 +73,8 @@ const App = () => (
               <Route path="/changelog" element={<Changelog />} />
               <Route path="/admin" element={<Admin />} />
               <Route path="/telegram" element={<TelegramMiniApp />} />
+              <Route path="/oauth/authorize" element={<OAuthAuthorize />} />
+              <Route path="/oauth/auth" element={<OAuthAuthorize />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </Suspense>
