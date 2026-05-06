@@ -63,7 +63,6 @@ type SectionId =
 const SECTIONS: { id: SectionId; label: string; icon: React.ComponentType<{ className?: string }>; group: "Account" | "Mail" | "Workspace" }[] = [
   { id: "profile",       label: "Profile",        icon: UserIcon,    group: "Account" },
   { id: "email",         label: "Email",          icon: Mail,        group: "Mail" },
-  { id: "notifications", label: "Notifications",  icon: Bell,        group: "Mail" },
   { id: "addresses",     label: "Addresses",      icon: AtSign,      group: "Mail" },
   { id: "domains",       label: "Custom domains", icon: Globe,       group: "Mail" },
   { id: "integrations",  label: "Integrations",   icon: Link2,       group: "Workspace" },
@@ -519,36 +518,6 @@ const Settings = ({ embedded = false }: { embedded?: boolean }) => {
                     onChange={(e) => setSettings({ ...settings, default_reply_to: e.target.value })} className="h-9 rounded-lg" />
                 </Field>
               </Section>
-            </div>
-          )}
-
-          {/* ─── Notifications ───────────────────────────────────── */}
-          {activeSection === "notifications" && (
-            <div className="space-y-6">
-              <Section title="In-app notifications" desc="Control which email events surface inside AfuChat Mail.">
-                {[
-                  { label: "All notifications", desc: "Master switch for email event alerts.", key: "notifications_enabled" as const, disabled: false },
-                  { label: "New emails", desc: "When you receive new messages.", key: "notification_new_email" as const, disabled: !settings.notifications_enabled },
-                  { label: "Replies", desc: "When someone replies to your emails.", key: "notification_replies" as const, disabled: !settings.notifications_enabled },
-                ].map((item, i, arr) => (
-                  <div key={item.key}>
-                    <div className="flex items-center justify-between gap-4 py-1">
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium">{item.label}</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">{item.desc}</p>
-                      </div>
-                      <Switch checked={settings[item.key]} onCheckedChange={(checked) => setSettings({ ...settings, [item.key]: checked })} disabled={item.disabled} />
-                    </div>
-                    {i < arr.length - 1 && <Divider />}
-                  </div>
-                ))}
-              </Section>
-
-              {selectedEmailAddressId && (
-                <Section title="Push notifications" desc="Receive push alerts on this device when new mail arrives.">
-                  <PushNotificationToggle emailAddressId={selectedEmailAddressId} />
-                </Section>
-              )}
             </div>
           )}
 
