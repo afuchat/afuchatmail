@@ -1,9 +1,8 @@
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
-import { View, StyleSheet } from 'react-native';
+import { Platform, View, StyleSheet } from 'react-native';
 import InboxScreen from '../screens/InboxScreen';
 import FoldersScreen from '../screens/FoldersScreen';
-import ComposeScreen from '../screens/ComposeScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import { colors } from '../lib/colors';
 
@@ -11,47 +10,50 @@ const Tab = createBottomTabNavigator();
 
 type IoniconName = keyof typeof Ionicons.glyphMap;
 
-const TAB_ICONS: Record<string, { active: IoniconName; inactive: IoniconName }> = {
-  Inbox:    { active: 'mail',          inactive: 'mail-outline'     },
-  Folders:  { active: 'folder',        inactive: 'folder-outline'   },
-  Compose:  { active: 'create',        inactive: 'create-outline'   },
-  Settings: { active: 'settings',      inactive: 'settings-outline' },
+const TAB_CONFIG: Record<string, { active: IoniconName; inactive: IoniconName; label: string }> = {
+  Inbox:       { active: 'mail',         inactive: 'mail-outline',      label: 'Mail'     },
+  Folders:     { active: 'folder',       inactive: 'folder-outline',    label: 'Folders'  },
+  SettingsTab: { active: 'settings',     inactive: 'settings-outline',  label: 'Settings' },
 };
 
 export default function MainTabs() {
   return (
     <Tab.Navigator
-      screenOptions={({ route }) => ({
-        headerShown: false,
-        tabBarStyle: styles.tabBar,
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.textFaint,
-        tabBarLabelStyle: styles.tabLabel,
-        tabBarIcon: ({ color, focused, size }) => {
-          const icons = TAB_ICONS[route.name];
-          const name = focused ? icons?.active : icons?.inactive;
-          return (
+      screenOptions={({ route }) => {
+        const cfg = TAB_CONFIG[route.name];
+        return {
+          headerShown: false,
+          tabBarStyle: styles.tabBar,
+          tabBarActiveTintColor: colors.primary,
+          tabBarInactiveTintColor: colors.textFaint,
+          tabBarLabelStyle: styles.tabLabel,
+          tabBarShowLabel: true,
+          tabBarIcon: ({ color, focused }) => (
             <View style={styles.iconWrap}>
               {focused && <View style={styles.activeIndicator} />}
-              <Ionicons name={name ?? 'ellipse-outline'} size={24} color={color} strokeWidth={focused ? 2.5 : 1.8} />
+              <Ionicons
+                name={focused ? cfg?.active : cfg?.inactive ?? 'ellipse-outline'}
+                size={24}
+                color={color}
+              />
             </View>
-          );
-        },
-      })}
+          ),
+          tabBarLabel: cfg?.label ?? route.name,
+        };
+      }}
     >
-      <Tab.Screen name="Inbox" component={InboxScreen} />
-      <Tab.Screen name="Folders" component={FoldersScreen} />
+      {/* Mail tab — handles mail+search internally with its own bottom bar (matches website BottomTabBar) */}
       <Tab.Screen
-        name="Compose"
-        component={ComposeScreen}
-        listeners={({ navigation }) => ({
-          tabPress: e => {
-            e.preventDefault();
-            navigation.navigate('Compose', {});
-          },
-        })}
+        name="Inbox"
+        component={InboxScreen}
+        options={{ tabBarStyle: { display: 'none' } }}
       />
-      <Tab.Screen name="Settings" component={SettingsScreen} />
+
+      {/* Folders tab — mirrors EmailSidebar folder navigation */}
+      <Tab.Screen name="Folders" component={FoldersScreen} />
+
+      {/* Settings tab */}
+      <Tab.Screen name="SettingsTab" component={SettingsScreen} />
     </Tab.Navigator>
   );
 }
@@ -61,19 +63,17 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bgCard,
     borderTopColor: colors.border,
     borderTopWidth: 1,
-    height: 82,
-    paddingBottom: 24,
+    height: Platform.OS === 'ios' ? 82 : 62,
+    paddingBottom: Platform.OS === 'ios' ? 22 : 8,
     paddingTop: 8,
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
   },
-  tabLabel: {
-    fontSize: 10,
-    fontWeight: '600',
-    marginTop: 2,
-  },
-  iconWrap: {
-    alignItems: 'center',
-    position: 'relative',
-  },
+  tabLabel: { fontSize: 10, fontWeight: '600', marginTop: 2 },
+  iconWrap: { alignItems: 'center', position: 'relative' },
   activeIndicator: {
     position: 'absolute',
     top: -10,

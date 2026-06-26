@@ -13,7 +13,7 @@ export interface Folder {
   id: string;
   user_id: string;
   name: string;
-  type: 'inbox' | 'sent' | 'drafts' | 'spam' | 'trash' | 'custom';
+  type: string;
   icon: string;
   color?: string;
 }
@@ -21,7 +21,8 @@ export interface Folder {
 export interface Attachment {
   name: string;
   size: number;
-  contentType: string;
+  path?: string;
+  contentType?: string;
 }
 
 export interface Email {
@@ -29,24 +30,33 @@ export interface Email {
   user_id: string;
   email_address_id: string;
   folder_id: string;
+  original_folder_id?: string | null;
   from_address: string;
   to_addresses: string[];
   cc_addresses?: string[];
   bcc_addresses?: string[];
+  reply_to?: string | null;
   subject: string;
   body_text?: string;
   body_html?: string;
   is_read: boolean;
   is_starred: boolean;
   is_important: boolean;
-  is_draft: boolean;
-  thread_id?: string;
-  reply_to?: string;
-  attachments?: Attachment[];
+  is_draft?: boolean;
+  thread_id?: string | null;
+  attachments?: Attachment[] | string | null;
   received_at?: string;
   sent_at?: string;
+  deleted_at?: string | null;
+  snoozed_until?: string | null;
   created_at: string;
-  deleted_at?: string;
+}
+
+export interface EmailThread {
+  thread_id: string;
+  emails: Email[];
+  latest_email: Email;
+  unread_count: number;
 }
 
 export interface Profile {
@@ -59,14 +69,13 @@ export interface Profile {
 export type RootStackParamList = {
   Auth: undefined;
   Main: undefined;
-  EmailDetail: { emailId: string };
+  EmailDetail: { emailId: string; threadId?: string };
   Compose: { replyTo?: Email; draftId?: string };
+  Settings: undefined;
 };
 
 export type MainTabParamList = {
   Inbox: undefined;
-  Starred: undefined;
-  Compose: undefined;
   Folders: undefined;
-  Settings: undefined;
+  SettingsTab: undefined;
 };

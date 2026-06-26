@@ -1,62 +1,263 @@
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
-  ActivityIndicator, StatusBar, Share, Alert, TextInput,
+  ActivityIndicator, StatusBar, Share, Alert, Platform,
 } from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { format } from 'date-fns';
+import { format, formatDistanceToNow } from 'date-fns';
 import { supabase } from '../lib/supabase';
-import { useEmail } from '../hooks/useEmails';
+import { useEmail, useThreadEmails } from '../hooks/useEmails';
+import { useAuth } from '../hooks/useAuth';
 import { colors } from '../lib/colors';
-import { RootStackParamList } from '../types';
+import { RootStackParamList, Email, Attachment } from '../types';
 
 type Route = RouteProp<RootStackParamList, 'EmailDetail'>;
 
-function getInitials(from: string): string {
-  const name = from.split('<')[0].trim().replace(/"/g, '');
-  const parts = name.split(' ');
-  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
-  return (name[0] ?? '?').toUpperCase();
-}
+// ─── Helpers (same as EmailViewer.tsx) ───────────────────────────────────
 
-const avatarColors = ['#6366F1', '#8B5CF6', '#10B981', '#F59E0B', '#EF4444', '#EC4899', '#06B6D4'];
+const parseFromAddress = (raw: string): { name: string; email: string } => {
+  if (!raw) return { name: '', email: '' };
+  const match = raw.match(/^\s*"?([^"<]*?)"?\s*<([^>]+)>\s*$/);
+  if (match) return { name: match[1].trim(), email: match[2].trim() };
+  const email = raw.trim();
+  const local = email.split('@')[0] || email;
+  return { name: local, email };
+};
+
+const avatarColors = [
+  '#1A73E8', '#EA4335', '#34A853', '#FBBC04',
+  '#9C27B0', '#FF6D00', '#00BCD4', '#E91E63',
+];
 function getAvatarColor(from: string): string {
   let sum = 0;
   for (let i = 0; i < from.length; i++) sum += from.charCodeAt(i);
   return avatarColors[sum % avatarColors.length];
 }
 
+function normalizeAttachments(raw: unknown): Attachment[] {
+  if (!raw) return [];
+  if (Array.isArray(raw)) return raw.filter(a => a?.name) as Attachment[];
+  if (typeof raw === 'string') {
+    try { return normalizeAttachments(JSON.parse(raw)); } catch { return []; }
+  }
+  return [];
+}
+
+const FILE_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
+  pdf: 'document-text',
+  doc: 'document',
+  docx: 'document',
+  jpg: 'image', jpeg: 'image', png: 'image', gif: 'image', webp: 'image',
+  mp4: 'videocam',
+  mp3: 'musical-note',
+  zip: 'archive',
+  xlsx: 'grid', xls: 'grid',
+};
+function getFileIcon(name: string): keyof typeof Ionicons.glyphMap {
+  const ext = name.split('.').pop()?.toLowerCase() ?? '';
+  return FILE_ICONS[ext] ?? 'document-outline';
+}
+
+// ─── Single email bubble (same as EmailViewer's thread message rendering) ─
+
+interface EmailBubbleProps {
+  email: Email;
+  expanded: boolean;
+  isLast: boolean;
+  onToggle: () => void;
+  onStar: () => void;
+  onReply: () => void;
+}
+
+function EmailBubble({ email, expanded, isLast, onToggle, onStar, onReply }: EmailBubbleProps) {
+  const { name, email: fromEmail } = parseFromAddress(email.from_address);
+  const avatarColor = getAvatarColor(email.from_address);
+  const initials = (name?.[0] || fromEmail?.[0] || '?').toUpperCase();
+  const attachments = normalizeAttachments(email.attachments);
+
+  const dateStr = email.received_at
+    ? format(new Date(email.received_at), 'EEE, MMM d · h:mm a')
+    : email.created_at
+      ? format(new Date(email.created_at), 'EEE, MMM d · h:mm a')
+      : '';
+
+  const relativeDate = email.received_at || email.created_at
+    ? formatDistanceToNow(new Date(email.received_at || email.created_at), { addSuffix: true })
+    : '';
+
+  return (
+    <View style={styles.bubble}>
+      {/* Sender row — always visible */}
+      <TouchableOpacity style={styles.bubbleSenderRow} onPress={onToggle} activeOpacity={0.7}>
+        <View style={[styles.bubbleAvatar, { backgroundColor: avatarColor }]}>
+          <Text style={styles.bubbleAvatarText}>{initials}</Text>
+        </View>
+        <View style={styles.bubbleSenderInfo}>
+          <Text style={styles.bubbleSenderName}>{name || fromEmail}</Text>
+          {!expanded && (
+            <Text style={styles.bubblePreview} numberOfLines={1}>
+              {(email.body_text ?? '').replace(/\s+/g, ' ').trim()}
+            </Text>
+          )}
+          {expanded && <Text style={styles.bubbleSenderEmail}>{dateStr}</Text>}
+        </View>
+        <View style={styles.bubbleMetaRight}>
+          {!expanded && <Text style={styles.bubbleRelDate}>{relativeDate}</Text>}
+          <TouchableOpacity onPress={onStar} style={styles.bubbleStarBtn}>
+            <Ionicons
+              name={email.is_starred ? 'star' : 'star-outline'}
+              size={18}
+              color={email.is_starred ? colors.starred : colors.textHint}
+            />
+          </TouchableOpacity>
+          {expanded && (
+            <TouchableOpacity onPress={onReply} style={styles.bubbleReplyBtn}>
+              <Ionicons name="arrow-undo-outline" size={18} color={colors.textDim} />
+            </TouchableOpacity>
+          )}
+        </View>
+      </TouchableOpacity>
+
+      {/* Body — only when expanded (same as EmailViewer's expandedEmails set) */}
+      {expanded && (
+        <>
+          <View style={styles.bubbleBody}>
+            <Text style={styles.bubbleBodyText}>{email.body_text || '(No content)'}</Text>
+          </View>
+
+          {/* Attachments */}
+          {attachments.length > 0 && (
+            <View style={styles.bubbleAttachments}>
+              <View style={styles.attachDivider} />
+              <Text style={styles.attachTitle}>
+                {attachments.length} Attachment{attachments.length !== 1 ? 's' : ''}
+              </Text>
+              {attachments.map((att, i) => (
+                <View key={i} style={styles.attachRow}>
+                  <View style={styles.attachIconWrap}>
+                    <Ionicons name={getFileIcon(att.name)} size={16} color={colors.primary} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.attachName} numberOfLines={1}>{att.name}</Text>
+                    {att.size > 0 && (
+                      <Text style={styles.attachSize}>{(att.size / 1024).toFixed(0)} KB</Text>
+                    )}
+                  </View>
+                  <Ionicons name="download-outline" size={16} color={colors.textFaint} />
+                </View>
+              ))}
+            </View>
+          )}
+
+          {/* Reply / Forward buttons at bottom of last email */}
+          {isLast && (
+            <View style={styles.bubbleActions}>
+              <TouchableOpacity style={styles.bubbleActionBtn} onPress={onReply}>
+                <Ionicons name="arrow-undo-outline" size={16} color={colors.primary} />
+                <Text style={styles.bubbleActionText}>Reply</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </>
+      )}
+    </View>
+  );
+}
+
+// ─── EmailDetailScreen ────────────────────────────────────────────────────
+
 export default function EmailDetailScreen() {
   const navigation = useNavigation();
   const route = useRoute<Route>();
   const { emailId } = route.params;
+  const { user } = useAuth();
+
   const { email, loading } = useEmail(emailId);
-  const [starred, setStarred] = useState(false);
+  const { threadEmails, loadingThread } = useThreadEmails(email);
+
+  // Auto-expand latest email in thread (same as EmailViewer)
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set([emailId]));
+  const [isTrash, setIsTrash] = useState(false);
 
   useEffect(() => {
-    if (email) {
-      setStarred(email.is_starred);
-      if (!email.is_read) {
-        supabase.from('emails').update({ is_read: true }).eq('id', emailId);
-      }
+    if (threadEmails.length > 0) {
+      const latest = threadEmails[threadEmails.length - 1];
+      setExpandedIds(new Set([latest.id]));
+    }
+  }, [threadEmails]);
+
+  // Mark as read on open (same as Dashboard handleEmailSelect)
+  useEffect(() => {
+    if (email && !email.is_read) {
+      supabase.from('emails').update({ is_read: true }).eq('id', emailId);
     }
   }, [email, emailId]);
 
-  const toggleStar = async () => {
-    const next = !starred;
-    setStarred(next);
-    await supabase.from('emails').update({ is_starred: next }).eq('id', emailId);
+  // Check if in trash (same as EmailViewer)
+  useEffect(() => {
+    if (!email?.folder_id || !user) return;
+    supabase.from('folders').select('type').eq('id', email.folder_id).single()
+      .then(({ data }) => setIsTrash(data?.type === 'trash'));
+  }, [email?.folder_id, user]);
+
+  const toggleStar = async (e: Email) => {
+    const next = !e.is_starred;
+    await supabase.from('emails').update({ is_starred: next }).eq('id', e.id);
+  };
+
+  const handleDelete = async () => {
+    if (!user || !email) return;
+    if (isTrash) {
+      Alert.alert('Delete permanently?', 'This cannot be undone.', [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete', style: 'destructive', onPress: async () => {
+            await supabase.from('emails').delete().eq('id', email.id);
+            navigation.goBack();
+          },
+        },
+      ]);
+    } else {
+      const { data: trashFolder } = await supabase
+        .from('folders').select('id').eq('user_id', user.id).eq('type', 'trash').single();
+      if (!trashFolder) return;
+      await supabase.from('emails').update({
+        folder_id: trashFolder.id,
+        original_folder_id: email.folder_id,
+        deleted_at: new Date().toISOString(),
+      }).eq('id', email.id);
+      navigation.goBack();
+    }
+  };
+
+  const handleRestore = async () => {
+    if (!user || !email) return;
+    const targetFolderId = email.original_folder_id ?? (
+      await supabase.from('folders').select('id').eq('user_id', user.id).eq('type', 'inbox').single()
+        .then(({ data }) => data?.id)
+    );
+    if (!targetFolderId) return;
+    await supabase.from('emails').update({
+      folder_id: targetFolderId,
+      deleted_at: null,
+      original_folder_id: null,
+    }).eq('id', email.id);
+    navigation.goBack();
+  };
+
+  const handleReply = (e: Email) => {
+    navigation.navigate('Compose', {
+      replyTo: {
+        ...e,
+        subject: e.subject?.startsWith('Re:') ? e.subject : `Re: ${e.subject ?? ''}`,
+      } as any,
+    });
   };
 
   const handleShare = async () => {
     if (!email) return;
     await Share.share({ message: `${email.subject}\n\n${email.body_text ?? ''}` });
-  };
-
-  const handleReply = () => {
-    if (!email) return;
-    (navigation as any).navigate('Compose', { replyTo: email });
   };
 
   if (loading) {
@@ -66,345 +267,260 @@ export default function EmailDetailScreen() {
       </View>
     );
   }
-
   if (!email) {
     return (
       <View style={styles.center}>
-        <Ionicons name="mail-unread-outline" size={48} color={colors.textFaint} />
-        <Text style={styles.errorText}>Email not found.</Text>
+        <Ionicons name="mail-unread-outline" size={56} color={colors.textHint} />
+        <Text style={styles.errorText}>Email not found</Text>
       </View>
     );
   }
 
-  const fromName =
-    email.from_address.split('<')[0].trim().replace(/"/g, '') || email.from_address;
-  const initials = getInitials(email.from_address);
-  const avatarColor = getAvatarColor(email.from_address);
-  const dateStr = email.received_at
-    ? format(new Date(email.received_at), 'EEE, MMM d, yyyy · h:mm a')
-    : '';
+  const displayEmails = threadEmails.length > 0 ? threadEmails : [email];
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor={colors.bg} />
+      <StatusBar barStyle="dark-content" backgroundColor={colors.bgCard} />
 
-      {/* Nav bar */}
-      <View style={styles.navBar}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-          <Ionicons name="chevron-back" size={22} color={colors.primary} />
-          <Text style={styles.backLabel}>Inbox</Text>
+      {/* Top action bar (same as EmailViewer top row) */}
+      <View style={styles.topBar}>
+        <TouchableOpacity style={styles.topBarBtn} onPress={() => navigation.goBack()}>
+          <Ionicons name="arrow-back" size={22} color={colors.textDim} />
         </TouchableOpacity>
-        <View style={styles.navActions}>
-          <TouchableOpacity style={styles.navIconBtn} onPress={toggleStar}>
-            <Ionicons
-              name={starred ? 'star' : 'star-outline'}
-              size={22}
-              color={starred ? colors.starred : colors.textFaint}
-            />
+        <View style={styles.topBarActions}>
+          {isTrash ? (
+            <TouchableOpacity style={styles.topBarBtn} onPress={handleRestore}>
+              <Ionicons name="arrow-undo-outline" size={22} color={colors.primary} />
+            </TouchableOpacity>
+          ) : null}
+          <TouchableOpacity style={styles.topBarBtn} onPress={handleDelete}>
+            <Ionicons name="trash-outline" size={22} color={colors.textDim} />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.navIconBtn}>
-            <Ionicons name="archive-outline" size={21} color={colors.textFaint} />
+          <TouchableOpacity style={styles.topBarBtn} onPress={handleShare}>
+            <Ionicons name="share-outline" size={22} color={colors.textDim} />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.navIconBtn}>
-            <Ionicons name="trash-outline" size={21} color={colors.textFaint} />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.navIconBtn} onPress={handleShare}>
-            <Ionicons name="ellipsis-horizontal" size={21} color={colors.textFaint} />
+          <TouchableOpacity style={styles.topBarBtn}>
+            <Ionicons name="ellipsis-vertical" size={22} color={colors.textDim} />
           </TouchableOpacity>
         </View>
       </View>
 
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
+      <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
         {/* Subject */}
-        <Text style={styles.subject}>{email.subject || '(no subject)'}</Text>
-
-        {/* Sender card */}
-        <View style={styles.senderCard}>
-          <View style={[styles.senderAvatar, { backgroundColor: avatarColor }]}>
-            <Text style={styles.senderInitials}>{initials}</Text>
-          </View>
-          <View style={styles.senderInfo}>
-            <Text style={styles.senderName}>{fromName}</Text>
-            <Text style={styles.senderMeta}>to me · {dateStr}</Text>
-          </View>
-          <Ionicons name="chevron-down" size={18} color={colors.textFaint} />
+        <View style={styles.subjectRow}>
+          <Text style={styles.subject}>{email.subject || '(no subject)'}</Text>
+          {email.is_important && (
+            <View style={styles.importantBadge}>
+              <Ionicons name="bookmark" size={12} color="#fff" />
+            </View>
+          )}
         </View>
 
-        {/* Recipients detail */}
-        {email.to_addresses && email.to_addresses.length > 0 && (
-          <View style={styles.metaCard}>
-            <View style={styles.metaRow}>
-              <Text style={styles.metaLabel}>To</Text>
-              <Text style={styles.metaValue}>{email.to_addresses.join(', ')}</Text>
-            </View>
-            {email.cc_addresses && email.cc_addresses.length > 0 && (
-              <>
-                <View style={styles.metaDivider} />
-                <View style={styles.metaRow}>
-                  <Text style={styles.metaLabel}>CC</Text>
-                  <Text style={styles.metaValue}>{email.cc_addresses.join(', ')}</Text>
-                </View>
-              </>
-            )}
+        {/* Trash notice (same as EmailViewer) */}
+        {isTrash && (
+          <View style={styles.trashNotice}>
+            <Ionicons name="trash-outline" size={14} color="#92400E" />
+            <Text style={styles.trashNoticeText}>
+              This email is in the trash.{' '}
+              <Text style={styles.trashRestoreLink} onPress={handleRestore}>Restore it</Text>
+            </Text>
           </View>
         )}
 
-        {/* Body */}
-        <View style={styles.bodyCard}>
-          <Text style={styles.body}>{email.body_text || '(No content)'}</Text>
-        </View>
-
-        {/* Attachments */}
-        {email.attachments && email.attachments.length > 0 && (
-          <View style={styles.attachCard}>
-            <Text style={styles.attachTitle}>
-              Attachments ({email.attachments.length})
-            </Text>
-            {email.attachments.map((att, i) => (
-              <TouchableOpacity key={i} style={[styles.attachRow, i > 0 && styles.attachRowBorder]}>
-                <View style={styles.attachIcon}>
-                  <Ionicons name="document-outline" size={20} color={colors.primary} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.attachName}>{att.name}</Text>
-                  <Text style={styles.attachSize}>
-                    {att.size ? `${(att.size / 1024).toFixed(1)} KB` : 'PDF'}
-                  </Text>
-                </View>
-              </TouchableOpacity>
+        {/* Thread emails (same as EmailViewer thread bubble rendering) */}
+        {loadingThread && displayEmails.length <= 1 ? (
+          <View style={{ padding: 16, alignItems: 'center' }}>
+            <ActivityIndicator color={colors.primary} size="small" />
+          </View>
+        ) : (
+          <View style={styles.threadContainer}>
+            {displayEmails.map((e, idx) => (
+              <EmailBubble
+                key={e.id}
+                email={e}
+                expanded={expandedIds.has(e.id)}
+                isLast={idx === displayEmails.length - 1}
+                onToggle={() => {
+                  setExpandedIds(prev => {
+                    const next = new Set(prev);
+                    if (next.has(e.id)) next.delete(e.id); else next.add(e.id);
+                    return next;
+                  });
+                }}
+                onStar={() => {
+                  const next = !e.is_starred;
+                  supabase.from('emails').update({ is_starred: next }).eq('id', e.id);
+                }}
+                onReply={() => handleReply(e)}
+              />
             ))}
           </View>
         )}
 
-        {/* Reply / Forward */}
-        <View style={styles.actionsRow}>
-          <TouchableOpacity style={styles.actionBtn} onPress={handleReply}>
-            <Ionicons name="arrow-undo-outline" size={17} color={colors.textMuted} />
-            <Text style={styles.actionBtnText}>Reply</Text>
+        {/* Reply / Forward bottom buttons */}
+        <View style={styles.bottomActions}>
+          <TouchableOpacity style={styles.bottomActionBtn} onPress={() => handleReply(email)}>
+            <Ionicons name="arrow-undo-outline" size={18} color={colors.primary} />
+            <Text style={styles.bottomActionText}>Reply</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.actionBtn}>
-            <Ionicons name="arrow-redo-outline" size={17} color={colors.textMuted} />
-            <Text style={styles.actionBtnText}>Forward</Text>
+          <TouchableOpacity style={[styles.bottomActionBtn, { borderColor: colors.border }]}
+            onPress={() => navigation.navigate('Compose', {
+              replyTo: { ...email, subject: `Fwd: ${email.subject}`, from_address: '' } as any,
+            })}>
+            <Ionicons name="arrow-redo-outline" size={18} color={colors.textDim} />
+            <Text style={[styles.bottomActionText, { color: colors.textDim }]}>Forward</Text>
           </TouchableOpacity>
         </View>
-      </ScrollView>
 
-      {/* Inline reply bar */}
-      <View style={styles.replyBar}>
-        <View style={[styles.replyAvatar, { backgroundColor: colors.primary }]}>
-          <Text style={styles.replyAvatarText}>A</Text>
-        </View>
-        <TouchableOpacity style={styles.replyInput} onPress={handleReply}>
-          <Text style={styles.replyPlaceholder}>Reply to {fromName}…</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.sendBtn} onPress={handleReply}>
-          <Ionicons name="send" size={16} color="#fff" />
-        </TouchableOpacity>
-      </View>
+        <View style={{ height: 60 }} />
+      </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
-  center: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.bg,
-    gap: 12,
-  },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bg, gap: 12 },
   errorText: { color: colors.textFaint, fontSize: 16 },
 
-  navBar: {
+  topBar: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 8,
-    paddingTop: 8,
-    paddingBottom: 10,
-    backgroundColor: colors.bg,
+    paddingHorizontal: 4,
+    paddingTop: Platform.OS === 'ios' ? 50 : 8,
+    paddingBottom: 4,
+    backgroundColor: colors.bgCard,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
-  backBtn: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 4, paddingVertical: 6 },
-  backLabel: { color: colors.primary, fontSize: 16, fontWeight: '500' },
-  navActions: { flexDirection: 'row', gap: 2 },
-  navIconBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  topBarBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 22 },
+  topBarActions: { flexDirection: 'row' },
 
   scroll: { flex: 1 },
-  scrollContent: { padding: 16, paddingBottom: 24 },
 
-  subject: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: colors.text,
-    letterSpacing: -0.3,
-    lineHeight: 28,
-    marginBottom: 14,
+  subjectRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 12,
+    gap: 8,
+  },
+  subject: { flex: 1, fontSize: 20, fontWeight: '700', color: colors.text, lineHeight: 28, letterSpacing: -0.3 },
+  importantBadge: {
+    width: 24, height: 24, borderRadius: 12,
+    backgroundColor: colors.yellow,
+    alignItems: 'center', justifyContent: 'center',
+    flexShrink: 0, marginTop: 4,
   },
 
-  senderCard: {
+  trashNotice: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.bgCard,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: 14,
-    marginBottom: 12,
-    gap: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 3,
-    elevation: 1,
-  },
-  senderAvatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-  },
-  senderInitials: { color: '#fff', fontWeight: '700', fontSize: 16 },
-  senderInfo: { flex: 1 },
-  senderName: { fontSize: 15, fontWeight: '700', color: colors.text, marginBottom: 2 },
-  senderMeta: { fontSize: 12, color: colors.textDim },
-
-  metaCard: {
-    backgroundColor: colors.bgCard,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: colors.border,
-    marginBottom: 12,
-    overflow: 'hidden',
-  },
-  metaRow: { flexDirection: 'row', padding: 12, alignItems: 'flex-start', gap: 12 },
-  metaLabel: { color: colors.textFaint, width: 28, fontSize: 13, fontWeight: '600', paddingTop: 1 },
-  metaValue: { color: colors.textDim, flex: 1, fontSize: 13, lineHeight: 18 },
-  metaDivider: { height: 1, backgroundColor: colors.borderLight, marginHorizontal: 12 },
-
-  bodyCard: {
-    backgroundColor: colors.bgCard,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 3,
-    elevation: 1,
-  },
-  body: { fontSize: 15, color: colors.textMuted, lineHeight: 24 },
-
-  attachCard: {
-    backgroundColor: colors.bgCard,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
-    marginBottom: 12,
-    overflow: 'hidden',
-  },
-  attachTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: colors.textDim,
-    padding: 14,
-    paddingBottom: 8,
-    letterSpacing: 0.3,
-  },
-  attachRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 14,
-    paddingTop: 10,
-    gap: 12,
-  },
-  attachRowBorder: { borderTopWidth: 1, borderTopColor: colors.borderLight },
-  attachIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
-    backgroundColor: colors.primaryLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  attachName: { fontSize: 14, fontWeight: '600', color: colors.text, marginBottom: 2 },
-  attachSize: { fontSize: 12, color: colors.textFaint },
-
-  actionsRow: {
-    flexDirection: 'row',
-    gap: 10,
+    gap: 6,
+    marginHorizontal: 16,
     marginBottom: 8,
+    backgroundColor: '#FEF3C7',
+    borderRadius: 8,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: '#FDE68A',
   },
-  actionBtn: {
+  trashNoticeText: { fontSize: 13, color: '#92400E', flex: 1 },
+  trashRestoreLink: { fontWeight: '700', textDecorationLine: 'underline' },
+
+  threadContainer: { paddingHorizontal: 12, gap: 4, paddingBottom: 8 },
+
+  bubble: {
+    backgroundColor: colors.bgCard,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    overflow: 'hidden',
+    marginBottom: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  bubbleSenderRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    padding: 14,
+    gap: 10,
+  },
+  bubbleAvatar: {
+    width: 38, height: 38, borderRadius: 19,
+    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+  },
+  bubbleAvatarText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+  bubbleSenderInfo: { flex: 1 },
+  bubbleSenderName: { fontSize: 14, fontWeight: '700', color: colors.text, marginBottom: 2 },
+  bubbleSenderEmail: { fontSize: 12, color: colors.textFaint },
+  bubblePreview: { fontSize: 13, color: colors.textFaint },
+  bubbleMetaRight: { flexDirection: 'row', alignItems: 'center', gap: 4, flexShrink: 0 },
+  bubbleRelDate: { fontSize: 11, color: colors.textFaint },
+  bubbleStarBtn: { padding: 4 },
+  bubbleReplyBtn: { padding: 4 },
+
+  bubbleBody: { paddingHorizontal: 14, paddingBottom: 14 },
+  bubbleBodyText: { fontSize: 14, color: colors.textMuted, lineHeight: 24, letterSpacing: 0.1 },
+
+  bubbleAttachments: { paddingHorizontal: 14, paddingBottom: 14 },
+  attachDivider: { height: 1, backgroundColor: colors.border, marginBottom: 10 },
+  attachTitle: { fontSize: 12, fontWeight: '600', color: colors.textDim, marginBottom: 8 },
+  attachRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    backgroundColor: colors.bgSection,
+    borderRadius: 8, padding: 10, marginBottom: 4,
+    borderWidth: 1, borderColor: colors.border,
+  },
+  attachIconWrap: {
+    width: 32, height: 32, borderRadius: 8,
+    backgroundColor: colors.primaryLight,
+    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+  },
+  attachName: { fontSize: 13, fontWeight: '600', color: colors.text, marginBottom: 1 },
+  attachSize: { fontSize: 11, color: colors.textFaint },
+
+  bubbleActions: {
+    paddingHorizontal: 14,
+    paddingBottom: 14,
+    paddingTop: 4,
+  },
+  bubbleActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    alignSelf: 'flex-start',
+  },
+  bubbleActionText: { color: colors.primary, fontWeight: '600', fontSize: 14 },
+
+  bottomActions: {
+    flexDirection: 'row',
+    gap: 12,
+    paddingHorizontal: 12,
+    paddingTop: 8,
+    paddingBottom: 4,
+  },
+  bottomActionBtn: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
     paddingVertical: 13,
-    borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    backgroundColor: colors.bgCard,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 3,
-    elevation: 1,
-  },
-  actionBtnText: { color: colors.textMuted, fontWeight: '600', fontSize: 15 },
-
-  replyBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    paddingBottom: 28,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    backgroundColor: colors.bg,
-  },
-  replyAvatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-  },
-  replyAvatarText: { color: '#fff', fontWeight: '700', fontSize: 13 },
-  replyInput: {
-    flex: 1,
-    backgroundColor: colors.bgCard,
     borderRadius: 24,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
     borderWidth: 1.5,
-    borderColor: colors.border,
+    borderColor: colors.primary,
+    backgroundColor: colors.bgCard,
   },
-  replyPlaceholder: { color: colors.textFaint, fontSize: 14 },
-  sendBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-  },
+  bottomActionText: { color: colors.primary, fontWeight: '600', fontSize: 14 },
 });

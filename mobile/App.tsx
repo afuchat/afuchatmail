@@ -11,6 +11,7 @@ import AuthScreen from './src/screens/AuthScreen';
 import MainTabs from './src/navigation/MainTabs';
 import EmailDetailScreen from './src/screens/EmailDetailScreen';
 import ComposeScreen from './src/screens/ComposeScreen';
+import SettingsScreen from './src/screens/SettingsScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -23,7 +24,7 @@ const navTheme = {
     text: colors.text,
     border: colors.border,
     primary: colors.primary,
-    notification: colors.primary,
+    notification: colors.gmail,
   },
 };
 
@@ -47,11 +48,11 @@ export default function App() {
     return (
       <View style={styles.splash}>
         <View style={styles.splashIcon}>
-          <Text style={styles.splashEmoji}>✉️</Text>
+          <Text style={styles.splashLogo}>✉️</Text>
         </View>
         <Text style={styles.splashTitle}>AfuChat Mail</Text>
         <Text style={styles.splashSub}>Your professional @afuchat.com inbox</Text>
-        <ActivityIndicator color={colors.primary} style={{ marginTop: 32 }} />
+        <ActivityIndicator color={colors.primary} style={{ marginTop: 32 }} size="large" />
       </View>
     );
   }
@@ -75,6 +76,11 @@ export default function App() {
                 component={ComposeScreen}
                 options={{ animation: 'slide_from_bottom', presentation: 'modal' }}
               />
+              <Stack.Screen
+                name="Settings"
+                component={SettingsScreen}
+                options={{ animation: 'slide_from_right' }}
+              />
             </>
           )}
         </Stack.Navigator>
@@ -92,26 +98,26 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   splashIcon: {
-    width: 88,
-    height: 88,
-    borderRadius: 22,
+    width: 96,
+    height: 96,
+    borderRadius: 24,
     backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 18,
+    marginBottom: 24,
     shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.35,
+    shadowRadius: 20,
+    elevation: 12,
   },
-  splashEmoji: { fontSize: 40 },
+  splashLogo: { fontSize: 44 },
   splashTitle: {
     color: colors.text,
-    fontSize: 28,
+    fontSize: 30,
     fontWeight: '800',
     letterSpacing: -0.5,
-    marginBottom: 6,
+    marginBottom: 8,
   },
-  splashSub: { color: colors.textFaint, fontSize: 14 },
+  splashSub: { color: colors.textFaint, fontSize: 14, textAlign: 'center' },
 });

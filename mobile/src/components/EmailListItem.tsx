@@ -9,101 +9,111 @@ interface Props {
   email: Email;
   onPress: () => void;
   onStar: () => void;
+  onLongPress?: () => void;
 }
 
-function formatDate(dateStr?: string): string {
+// Same formatTime as EmailList.tsx
+function formatTime(dateStr?: string): string {
   if (!dateStr) return '';
-  const date = new Date(dateStr);
-  if (isToday(date)) return format(date, 'h:mm a');
-  if (isYesterday(date)) return 'Yesterday';
-  return format(date, 'MMM d');
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return '';
+  const diffHours = (Date.now() - d.getTime()) / (1000 * 60 * 60);
+  if (diffHours < 24) return format(d, 'HH:mm');
+  return format(d, 'MMM dd');
 }
 
+// Same getInitials as EmailList.tsx
 function getInitials(from: string): string {
-  const name = from.split('<')[0].trim().replace(/"/g, '');
-  const parts = name.split(' ');
-  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
-  return (name[0] ?? '?').toUpperCase();
+  return (from.trim()[0] ?? '?').toUpperCase();
 }
 
-const avatarColors = ['#6366F1', '#8B5CF6', '#10B981', '#F59E0B', '#EF4444', '#EC4899', '#06B6D4'];
-function getAvatarColor(from: string): string {
-  let sum = 0;
-  for (let i = 0; i < from.length; i++) sum += from.charCodeAt(i);
-  return avatarColors[sum % avatarColors.length];
+// Same avatar color palette as EmailViewer.tsx
+const avatarPalette = [
+  { bg: '#DBEAFE', text: '#1D4ED8' },
+  { bg: '#D1FAE5', text: '#065F46' },
+  { bg: '#EDE9FE', text: '#6D28D9' },
+  { bg: '#FEF3C7', text: '#92400E' },
+  { bg: '#FCE7F3', text: '#9D174D' },
+  { bg: '#E0E7FF', text: '#3730A3' },
+  { bg: '#CCFBF1', text: '#134E4A' },
+];
+function getAvatarColors(from: string) {
+  let hash = 0;
+  for (let i = 0; i < from.length; i++) hash = (hash * 31 + from.charCodeAt(i)) >>> 0;
+  return avatarPalette[hash % avatarPalette.length];
 }
 
-export default function EmailListItem({ email, onPress, onStar }: Props) {
-  const initials = getInitials(email.from_address);
-  const avatarColor = getAvatarColor(email.from_address);
-  const dateStr = formatDate(email.received_at ?? email.created_at);
-  const fromName =
-    email.from_address.split('<')[0].trim().replace(/"/g, '') || email.from_address;
+// Same getParticipantCount as EmailList.tsx
+function getParticipantCount(email: Email): number {
+  const s = new Set([email.from_address, ...(email.to_addresses ?? []), ...(email.cc_addresses ?? [])]);
+  return s.size;
+}
+
+export default function EmailListItem({ email, onPress, onStar, onLongPress }: Props) {
+  const initial = getInitials(email.from_address);
+  const palette = getAvatarColors(email.from_address);
+  const dateStr = formatTime(email.received_at || email.created_at);
   const isUnread = !email.is_read;
+  const participantCount = getParticipantCount(email);
+
+  // Parse display name (same as EmailViewer parseFromAddress)
+  const fromRaw = email.from_address || '';
+  const match = fromRaw.match(/^\s*"?([^"<]*?)"?\s*<([^>]+)>\s*$/);
+  const fromName = match ? match[1].trim() || match[2].trim() : fromRaw.split('@')[0] || fromRaw;
+
+  const hasAttachments = Array.isArray(email.attachments)
+    ? email.attachments.length > 0
+    : typeof email.attachments === 'string' && email.attachments !== '[]' && email.attachments !== '';
 
   return (
     <TouchableOpacity
-      style={[styles.container, isUnread && styles.unreadContainer]}
+      style={[styles.container, isUnread && styles.containerUnread]}
       onPress={onPress}
-      activeOpacity={0.75}
+      onLongPress={onLongPress}
+      activeOpacity={0.85}
+      delayLongPress={350}
     >
-      {/* Left unread accent */}
-      <View style={[styles.accentBar, isUnread && styles.accentBarActive]} />
-
-      {/* Avatar with optional star badge */}
-      <View style={styles.avatarWrap}>
-        <View style={[styles.avatar, { backgroundColor: avatarColor }]}>
-          <Text style={styles.avatarText}>{initials}</Text>
-        </View>
-        {email.is_starred && (
-          <View style={styles.starBadge}>
-            <Ionicons name="star" size={8} color={colors.starred} />
-          </View>
-        )}
+      {/* Avatar */}
+      <View style={[styles.avatar, { backgroundColor: palette.bg }]}>
+        <Text style={[styles.avatarText, { color: palette.text }]}>{initial}</Text>
       </View>
 
       {/* Content */}
       <View style={styles.body}>
         <View style={styles.topRow}>
-          <Text
-            style={[styles.from, isUnread && styles.fromUnread]}
-            numberOfLines={1}
-          >
+          <Text style={[styles.from, isUnread && styles.fromUnread]} numberOfLines={1}>
             {fromName}
+            {participantCount > 1 ? ` (${participantCount})` : ''}
           </Text>
           <Text style={[styles.date, isUnread && styles.dateUnread]}>{dateStr}</Text>
         </View>
-        <Text
-          style={[styles.subject, isUnread && styles.subjectUnread]}
-          numberOfLines={1}
-        >
+
+        <Text style={[styles.subject, isUnread && styles.subjectUnread]} numberOfLines={1}>
           {email.subject || '(no subject)'}
         </Text>
+
         <View style={styles.previewRow}>
-          {email.attachments && email.attachments.length > 0 && (
-            <Ionicons name="attach" size={13} color={colors.textFaint} style={{ marginRight: 4 }} />
-          )}
           <Text style={styles.preview} numberOfLines={1}>
-            {(email.body_text ?? '').replace(/\s+/g, ' ').trim() || '(no preview)'}
+            {(email.body_text ?? '').replace(/\s+/g, ' ').trim() || 'No preview available'}
           </Text>
+          {hasAttachments && (
+            <Ionicons name="attach" size={14} color={colors.textFaint} style={{ marginLeft: 4 }} />
+          )}
         </View>
       </View>
 
-      {/* Star button */}
+      {/* Star */}
       <TouchableOpacity
         style={styles.starBtn}
         onPress={onStar}
-        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}
       >
         <Ionicons
           name={email.is_starred ? 'star' : 'star-outline'}
-          size={20}
-          color={email.is_starred ? colors.starred : colors.textFaint}
+          size={18}
+          color={email.is_starred ? colors.starred : colors.textHint}
         />
       </TouchableOpacity>
-
-      {/* Unread dot */}
-      {isUnread && <View style={styles.unreadDot} />}
     </TouchableOpacity>
   );
 }
@@ -112,78 +122,36 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingRight: 16,
-    paddingVertical: 13,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: colors.bgCard,
     borderBottomWidth: 1,
-    borderBottomColor: colors.borderLight,
-    backgroundColor: colors.bg,
+    borderBottomColor: colors.border,
     gap: 12,
+    minHeight: 72,
   },
-  unreadContainer: {
-    backgroundColor: '#FEFEFE',
+  containerUnread: {
+    backgroundColor: '#EEF4FD',
   },
-  accentBar: {
-    width: 3,
-    alignSelf: 'stretch',
-    backgroundColor: 'transparent',
-    borderRadius: 2,
-    flexShrink: 0,
-  },
-  accentBarActive: {
-    backgroundColor: colors.primary,
-  },
-  avatarWrap: { position: 'relative', flexShrink: 0 },
   avatar: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: 42, height: 42, borderRadius: 21,
+    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
   },
-  avatarText: { color: '#fff', fontWeight: '700', fontSize: 17 },
-  starBadge: {
-    position: 'absolute',
-    bottom: -1,
-    right: -2,
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: '#FEF9C3',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1.5,
-    borderColor: colors.bg,
-  },
+  avatarText: { fontSize: 16, fontWeight: '700' },
   body: { flex: 1, minWidth: 0 },
   topRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 3,
+    marginBottom: 2,
   },
-  from: {
-    fontSize: 14,
-    color: colors.textDim,
-    fontWeight: '500',
-    flex: 1,
-    marginRight: 8,
-  },
+  from: { fontSize: 14, color: colors.textDim, fontWeight: '400', flex: 1, marginRight: 8 },
   fromUnread: { color: colors.text, fontWeight: '700' },
   date: { fontSize: 12, color: colors.textFaint, flexShrink: 0 },
-  dateUnread: { color: colors.primary, fontWeight: '700' },
-  subject: { fontSize: 14, color: colors.textDim, marginBottom: 3 },
-  subjectUnread: { color: colors.textMuted, fontWeight: '600' },
+  dateUnread: { color: colors.text, fontWeight: '600' },
+  subject: { fontSize: 14, color: colors.textDim, marginBottom: 2 },
+  subjectUnread: { color: colors.text, fontWeight: '600' },
   previewRow: { flexDirection: 'row', alignItems: 'center' },
   preview: { fontSize: 13, color: colors.textFaint, flex: 1 },
-  starBtn: { paddingLeft: 8, flexShrink: 0 },
-  unreadDot: {
-    position: 'absolute',
-    right: 52,
-    top: '50%',
-    marginTop: -4,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: colors.primary,
-  },
+  starBtn: { paddingLeft: 6, flexShrink: 0 },
 });

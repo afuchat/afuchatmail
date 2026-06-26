@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   ScrollView, Alert, ActivityIndicator, KeyboardAvoidingView,
@@ -8,10 +8,20 @@ import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
+import { useEmailAddresses } from '../hooks/useEmails';
 import { colors } from '../lib/colors';
-import { RootStackParamList } from '../types';
+import { RootStackParamList, Email } from '../types';
 
 type Route = RouteProp<RootStackParamList, 'Compose'>;
+
+// Same as EmailComposer.tsx: build a quoted reply body
+function buildReplyBody(original: Email, fromQuote = false): string {
+  const date = original.received_at || original.created_at || '';
+  const dateStr = date ? new Date(date).toLocaleString() : '';
+  const header = `\n\n\n— On ${dateStr}, ${original.from_address} wrote:`;
+  const body = (original.body_text ?? '').split('\n').map(l => `> ${l}`).join('\n');
+  return header + '\n' + body;
+}
 
 export default function ComposeScreen() {
   const navigation = useNavigation();
@@ -19,258 +29,326 @@ export default function ComposeScreen() {
   const { user } = useAuth();
   const replyTo = route.params?.replyTo;
 
+  const { addresses } = useEmailAddresses(user?.id);
+
+  const [fromAddressId, setFromAddressId] = useState<string | null>(null);
   const [to, setTo] = useState('');
   const [cc, setCc] = useState('');
+  const [bcc, setBcc] = useState('');
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
-  const [showCc, setShowCc] = useState(false);
+  const [showCcBcc, setShowCcBcc] = useState(false);
   const [sending, setSending] = useState(false);
-  const [fromEmail, setFromEmail] = useState('');
+  const bodyRef = useRef<TextInput>(null);
 
+  // Pre-fill for reply/forward (same as EmailComposer)
   useEffect(() => {
-    if (replyTo) {
-      setTo(replyTo.from_address);
-      setSubject(`Re: ${replyTo.subject ?? ''}`);
-      const quote = `\n\n—\nOn ${replyTo.received_at ?? replyTo.created_at}, ${replyTo.from_address} wrote:\n${replyTo.body_text ?? ''}`;
-      setBody(quote);
+    if (!replyTo) return;
+    const replyToAddr = replyTo.reply_to || replyTo.from_address;
+    setTo(replyToAddr);
+    const subj = replyTo.subject ?? '';
+    setSubject(subj.startsWith('Re:') ? subj : `Re: ${subj}`);
+    setBody(buildReplyBody(replyTo));
+  }, [replyTo?.id]);
+
+  // Set primary email as from address (same as EmailComposer)
+  useEffect(() => {
+    if (addresses.length > 0 && !fromAddressId) {
+      const primary = addresses.find(a => a.is_primary) ?? addresses[0];
+      if (primary) setFromAddressId(primary.id);
     }
-  }, [replyTo]);
+  }, [addresses]);
 
-  useEffect(() => {
-    if (!user) return;
-    supabase
-      .from('email_addresses')
-      .select('full_email')
-      .eq('user_id', user.id)
-      .eq('is_primary', true)
-      .single()
-      .then(({ data }) => { if (data) setFromEmail(data.full_email); });
-  }, [user]);
+  const fromAddress = addresses.find(a => a.id === fromAddressId);
 
   const handleSend = async () => {
-    if (!to.trim()) { Alert.alert('Error', 'Please enter a recipient.'); return; }
-    if (!subject.trim()) { Alert.alert('Error', 'Please enter a subject.'); return; }
+    if (!to.trim()) {
+      Alert.alert('Missing recipient', 'Please enter at least one recipient.');
+      return;
+    }
+    if (!subject.trim()) {
+      Alert.alert('No subject', 'Send without a subject?', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Send anyway', onPress: doSend },
+      ]);
+      return;
+    }
+    doSend();
+  };
+
+  const doSend = async () => {
     setSending(true);
     try {
-      const { error } = await supabase.functions.invoke('send-email', {
-        body: {
-          to: [to.trim()],
-          cc: cc ? [cc.trim()] : [],
-          subject: subject.trim(),
-          body_text: body.trim(),
-          reply_to_id: replyTo?.id,
-        },
-      });
-      if (error) {
-        Alert.alert('Send Failed', error.message);
-      } else {
-        Alert.alert('Sent!', 'Your email was sent successfully.', [
-          { text: 'OK', onPress: () => navigation.goBack() },
-        ]);
-      }
+      const payload: Record<string, unknown> = {
+        to: to.split(',').map(s => s.trim()).filter(Boolean),
+        subject: subject.trim(),
+        body_text: body.trim(),
+        from_address_id: fromAddressId,
+      };
+      if (cc) payload.cc = cc.split(',').map(s => s.trim()).filter(Boolean);
+      if (bcc) payload.bcc = bcc.split(',').map(s => s.trim()).filter(Boolean);
+      // Include thread info for replies (same as EmailComposer)
+      if (replyTo?.thread_id) payload.reply_to_thread_id = replyTo.thread_id;
+      if (replyTo?.id) payload.in_reply_to_id = replyTo.id;
+
+      const { error } = await supabase.functions.invoke('send-email', { body: payload });
+      if (error) throw error;
+      navigation.goBack();
     } catch (e: any) {
-      Alert.alert('Error', e?.message ?? 'Failed to send email.');
+      Alert.alert('Send failed', e?.message ?? 'Failed to send email. Please try again.');
     } finally {
       setSending(false);
     }
   };
 
-  const toolbarItems = [
-    { icon: 'attach-outline' as const, label: 'Attach' },
-    { icon: 'image-outline' as const, label: 'Photo' },
-    { icon: 'happy-outline' as const, label: 'Emoji' },
-    { icon: 'at-outline' as const, label: 'Mention' },
-    { icon: 'mic-outline' as const, label: 'Voice' },
-  ];
+  const handleDiscard = () => {
+    if (to || subject || body.trim()) {
+      Alert.alert('Discard draft?', 'Your message will be discarded.', [
+        { text: 'Keep editing', style: 'cancel' },
+        { text: 'Discard', style: 'destructive', onPress: () => navigation.goBack() },
+      ]);
+    } else {
+      navigation.goBack();
+    }
+  };
 
   return (
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <StatusBar barStyle="dark-content" backgroundColor={colors.bg} />
+      <StatusBar barStyle="dark-content" backgroundColor={colors.bgCard} />
 
-      {/* Header */}
+      {/* Header (same layout as EmailComposer header) */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.cancelBtn}>
-          <Text style={styles.cancelText}>Cancel</Text>
+        <TouchableOpacity onPress={handleDiscard} style={styles.headerBtn}>
+          <Ionicons name="close" size={24} color={colors.textDim} />
         </TouchableOpacity>
-        <Text style={styles.title}>New Message</Text>
-        <TouchableOpacity
-          style={[styles.sendBtn, !to && styles.sendBtnDisabled]}
-          onPress={handleSend}
-          disabled={sending || !to}
-        >
-          {sending
-            ? <ActivityIndicator color="#fff" size="small" />
-            : <Text style={styles.sendText}>Send</Text>}
-        </TouchableOpacity>
+        <Text style={styles.headerTitle}>
+          {replyTo ? 'Reply' : 'New message'}
+        </Text>
+        <View style={styles.headerRight}>
+          <TouchableOpacity
+            style={[styles.sendBtn, (!to.trim() || sending) && styles.sendBtnDisabled]}
+            onPress={handleSend}
+            disabled={sending || !to.trim()}
+          >
+            {sending
+              ? <ActivityIndicator color="#fff" size="small" />
+              : <Ionicons name="send" size={18} color="#fff" />
+            }
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView style={styles.form} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-        {/* Fields card */}
-        <View style={styles.fieldsCard}>
-          {fromEmail ? (
-            <View style={[styles.field, styles.fieldBorder]}>
+
+        {/* From (same as EmailComposer: shows from address with dropdown) */}
+        {addresses.length > 0 && (
+          <>
+            <View style={styles.field}>
               <Text style={styles.fieldLabel}>From</Text>
-              <Text style={styles.fieldValueStatic}>{fromEmail}</Text>
+              {addresses.length === 1 ? (
+                <Text style={styles.fieldStatic}>{fromAddress?.full_email ?? ''}</Text>
+              ) : (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
+                  {addresses.map(a => (
+                    <TouchableOpacity
+                      key={a.id}
+                      style={[styles.fromChip, fromAddressId === a.id && styles.fromChipActive]}
+                      onPress={() => setFromAddressId(a.id)}
+                    >
+                      <Text style={[styles.fromChipText, fromAddressId === a.id && styles.fromChipTextActive]}>
+                        {a.full_email}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              )}
             </View>
-          ) : null}
+            <View style={styles.divider} />
+          </>
+        )}
 
-          <View style={[styles.field, styles.fieldBorder]}>
-            <Text style={styles.fieldLabel}>To</Text>
-            <TextInput
-              style={styles.fieldInput}
-              placeholder="recipient@example.com"
-              placeholderTextColor={colors.textFaint}
-              value={to}
-              onChangeText={setTo}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoComplete="email"
-            />
-            <TouchableOpacity onPress={() => setShowCc(!showCc)}>
-              <Text style={styles.ccToggle}>CC/BCC</Text>
-            </TouchableOpacity>
-          </View>
+        {/* To */}
+        <View style={styles.field}>
+          <Text style={styles.fieldLabel}>To</Text>
+          <TextInput
+            style={styles.fieldInput}
+            placeholder="Recipients"
+            placeholderTextColor={colors.textHint}
+            value={to}
+            onChangeText={setTo}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            autoComplete="email"
+            returnKeyType="next"
+          />
+          <TouchableOpacity onPress={() => setShowCcBcc(v => !v)} style={styles.ccBtn}>
+            <Text style={styles.ccBtnText}>{showCcBcc ? 'Hide' : 'Cc/Bcc'}</Text>
+          </TouchableOpacity>
+        </View>
 
-          {showCc && (
-            <View style={[styles.field, styles.fieldBorder]}>
+        {/* Cc / Bcc (same as EmailComposer — shown when showCcBcc) */}
+        {showCcBcc && (
+          <>
+            <View style={styles.divider} />
+            <View style={styles.field}>
               <Text style={styles.fieldLabel}>Cc</Text>
               <TextInput
                 style={styles.fieldInput}
-                placeholder="Optional"
-                placeholderTextColor={colors.textFaint}
+                placeholder="Cc"
+                placeholderTextColor={colors.textHint}
                 value={cc}
                 onChangeText={setCc}
                 keyboardType="email-address"
                 autoCapitalize="none"
               />
             </View>
-          )}
+            <View style={styles.divider} />
+            <View style={styles.field}>
+              <Text style={styles.fieldLabel}>Bcc</Text>
+              <TextInput
+                style={styles.fieldInput}
+                placeholder="Bcc"
+                placeholderTextColor={colors.textHint}
+                value={bcc}
+                onChangeText={setBcc}
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
+            </View>
+          </>
+        )}
 
-          <View style={styles.field}>
-            <Text style={styles.fieldLabel}>Subject</Text>
-            <TextInput
-              style={styles.fieldInput}
-              placeholder="Email subject"
-              placeholderTextColor={colors.textFaint}
-              value={subject}
-              onChangeText={setSubject}
-            />
-          </View>
+        <View style={styles.divider} />
+
+        {/* Subject */}
+        <View style={styles.field}>
+          <TextInput
+            style={[styles.fieldInput, styles.subjectInput]}
+            placeholder="Subject"
+            placeholderTextColor={colors.textHint}
+            value={subject}
+            onChangeText={setSubject}
+            returnKeyType="next"
+            onSubmitEditing={() => bodyRef.current?.focus()}
+          />
         </View>
+
+        <View style={styles.divider} />
 
         {/* Body */}
         <TextInput
+          ref={bodyRef}
           style={styles.bodyInput}
-          placeholder="Write your message here…"
-          placeholderTextColor={colors.textFaint}
+          placeholder="Compose email"
+          placeholderTextColor={colors.textHint}
           value={body}
           onChangeText={setBody}
           multiline
           textAlignVertical="top"
+          autoCorrect
+          autoCapitalize="sentences"
         />
 
         {/* Signature */}
         <View style={styles.signature}>
-          <Text style={styles.signatureDash}>—</Text>
           <Text style={styles.signatureText}>
-            Sent with <Text style={{ color: colors.primary, fontWeight: '600' }}>AfuChat Mail</Text>
+            {'— '}
+            <Text style={{ color: colors.primary }}>AfuChat Mail</Text>
           </Text>
-          {fromEmail ? <Text style={styles.signatureEmail}>{fromEmail}</Text> : null}
         </View>
+
+        <View style={{ height: 120 }} />
       </ScrollView>
 
-      {/* Toolbar */}
+      {/* Toolbar (same as EmailComposer bottom toolbar) */}
       <View style={styles.toolbar}>
-        {toolbarItems.map(item => (
-          <TouchableOpacity key={item.label} style={styles.toolbarBtn}>
-            <Ionicons name={item.icon} size={22} color={colors.textDim} />
-            <Text style={styles.toolbarLabel}>{item.label}</Text>
-          </TouchableOpacity>
-        ))}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.toolbarContent}>
+          {([
+            ['attach-outline', 'Attach file'],
+            ['image-outline', 'Image'],
+            ['link-outline', 'Link'],
+          ] as [keyof typeof Ionicons.glyphMap, string][]).map(([icon, label]) => (
+            <TouchableOpacity key={label} style={styles.toolbarBtn}>
+              <Ionicons name={icon} size={22} color={colors.textDim} />
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
       </View>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bg },
+  container: { flex: 1, backgroundColor: colors.bgCard },
+
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingTop: 14,
+    paddingHorizontal: 8,
+    paddingTop: Platform.OS === 'ios' ? 50 : 12,
     paddingBottom: 12,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
-    backgroundColor: colors.bg,
-  },
-  cancelBtn: { paddingVertical: 4, paddingHorizontal: 4 },
-  cancelText: { color: colors.primary, fontSize: 16, fontWeight: '500' },
-  title: { fontSize: 17, fontWeight: '700', color: colors.text },
-  sendBtn: {
-    backgroundColor: colors.primary,
-    borderRadius: 20,
-    paddingHorizontal: 18,
-    paddingVertical: 8,
-    minWidth: 64,
-    alignItems: 'center',
-  },
-  sendBtnDisabled: { opacity: 0.5 },
-  sendText: { color: '#fff', fontWeight: '700', fontSize: 15 },
-  form: { flex: 1 },
-  fieldsCard: {
     backgroundColor: colors.bgCard,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
-    margin: 16,
-    marginBottom: 10,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 3,
-    elevation: 1,
+    gap: 4,
   },
+  headerBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 22 },
+  headerTitle: { flex: 1, fontSize: 17, fontWeight: '600', color: colors.text, marginLeft: 4 },
+  headerRight: { flexDirection: 'row', alignItems: 'center' },
+  sendBtn: {
+    width: 44, height: 44, borderRadius: 22,
+    backgroundColor: colors.primary,
+    alignItems: 'center', justifyContent: 'center',
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3, shadowRadius: 6, elevation: 4,
+  },
+  sendBtnDisabled: { opacity: 0.4 },
+
+  form: { flex: 1 },
   field: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 13,
-    gap: 12,
+    gap: 8,
+    minHeight: 50,
   },
-  fieldBorder: { borderBottomWidth: 1, borderBottomColor: colors.borderLight },
-  fieldLabel: { color: colors.textFaint, fontSize: 14, fontWeight: '600', width: 52 },
-  fieldValueStatic: { color: colors.textDim, flex: 1, fontSize: 15 },
-  fieldInput: { flex: 1, color: colors.text, fontSize: 15, padding: 0 },
-  ccToggle: { color: colors.primary, fontSize: 13, fontWeight: '600' },
+  divider: { height: 1, backgroundColor: colors.border, marginHorizontal: 16 },
+  fieldLabel: { width: 40, fontSize: 14, color: colors.textFaint },
+  fieldStatic: { flex: 1, fontSize: 15, color: colors.text },
+  fieldInput: { flex: 1, fontSize: 15, color: colors.text, padding: 0 },
+  subjectInput: { fontWeight: '500' },
+  ccBtn: { paddingHorizontal: 4 },
+  ccBtnText: { color: colors.primary, fontSize: 13, fontWeight: '600' },
+
+  fromChip: {
+    borderWidth: 1, borderColor: colors.border,
+    borderRadius: 16, paddingHorizontal: 10, paddingVertical: 5,
+  },
+  fromChipActive: { borderColor: colors.primary, backgroundColor: colors.primaryLight },
+  fromChipText: { fontSize: 12, color: colors.textDim },
+  fromChipTextActive: { color: colors.primary, fontWeight: '600' },
+
   bodyInput: {
-    flex: 1,
-    color: colors.text,
-    fontSize: 15,
+    fontSize: 15, color: colors.text,
     lineHeight: 24,
-    paddingHorizontal: 16,
-    minHeight: 200,
+    paddingHorizontal: 16, paddingTop: 12, paddingBottom: 12,
+    minHeight: 220,
   },
-  signature: { paddingHorizontal: 16, paddingVertical: 12, paddingBottom: 4 },
-  signatureDash: { color: colors.textFaint, fontSize: 14, marginBottom: 2 },
-  signatureText: { color: colors.textFaint, fontSize: 13 },
-  signatureEmail: { color: colors.border, fontSize: 13, marginTop: 1 },
+  signature: { paddingHorizontal: 16, paddingBottom: 12 },
+  signatureText: { fontSize: 13, color: colors.textHint },
+
   toolbar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-around',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    paddingBottom: 28,
     borderTopWidth: 1,
     borderTopColor: colors.border,
     backgroundColor: colors.bgCard,
+    paddingBottom: Platform.OS === 'ios' ? 24 : 8,
+    paddingTop: 4,
   },
-  toolbarBtn: { alignItems: 'center', gap: 3 },
-  toolbarLabel: { fontSize: 10, color: colors.textFaint },
+  toolbarContent: { paddingHorizontal: 8, gap: 4 },
+  toolbarBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 22 },
 });
